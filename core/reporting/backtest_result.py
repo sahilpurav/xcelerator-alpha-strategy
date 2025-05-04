@@ -19,9 +19,10 @@ class BacktestResult:
         years = (end - start).days / 365.25
         return (self.equity.iloc[-1] / self.equity.iloc[0]) ** (1 / years) - 1
 
-    def compute_max_drawdown(self):
-        roll_max = self.equity.cummax()
-        drawdown = (self.equity - roll_max) / roll_max
+    def compute_max_drawdown(self, series=None):
+        equity = series if series is not None else self.equity
+        peak = equity.cummax()
+        drawdown = (equity - peak) / peak
         return drawdown.min()
 
     def compute_volatility(self):
@@ -53,7 +54,7 @@ class BacktestResult:
         final = self.equity.iloc[-1]
         return (final / initial) - 1
 
-    def summary(self) -> pd.DataFrame:
+    def portfolio_summary(self) -> pd.DataFrame:
         return pd.DataFrame({
             "CAGR": [self.compute_cagr()],
             "Absolute Return": [self.compute_absolute_return()],
@@ -63,6 +64,25 @@ class BacktestResult:
             "Sortino Ratio": [self.compute_sortino()],
             "Alpha": [self.compute_alpha()]
         })
+    
+    def benchmark_summary(self) -> pd.DataFrame:
+        if self.benchmark is None or self.benchmark.empty:
+            return pd.DataFrame()
+
+        initial = self.benchmark.iloc[0]
+        final = self.benchmark.iloc[-1]
+        absolute_return = (final / initial) - 1
+        cagr = (final / initial) ** (1 / ((self.benchmark.index[-1] - self.benchmark.index[0]).days / 365.25)) - 1
+        volatility = self.benchmark.pct_change().std() * (252 ** 0.5)
+        max_dd = self.compute_max_drawdown(self.benchmark)
+
+        return pd.DataFrame({
+            "CAGR": [round(cagr, 4)],
+            "Absolute Return": [f"{absolute_return:.2%} ({(1 + absolute_return):.2f}x)"],
+            "Max Drawdown": [round(max_dd, 4)],
+            "Volatility": [round(volatility, 4)]
+        })
+
 
     def to_csv(self, output_dir="reports/"):
         os.makedirs(output_dir, exist_ok=True)

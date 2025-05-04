@@ -82,6 +82,20 @@ class UniverseStrategy:
             return 0.0
 
         return (price_end - price_start) / price_start
+    
+    def get_benchmark_curve(self) -> pd.Series:
+        """
+        Gets benchmark price series using same logic as stock data.
+        Rebased to initial capital.
+        """
+        symbol = self.config.get("benchmark", "^NSEI")
+        df = Stock.get_price(symbol, start_date=self.start_date, force_refresh=self.force_refresh)
+        if df is None or df.empty:
+            raise ValueError(f"Could not fetch benchmark data for {symbol}")
+
+        df = df[df.index >= pd.to_datetime(self.config["backtest_start_date"])]
+        rebased = (df["Close"] / df["Close"].iloc[0]) * self.config.get("initial_capital", 1_000_000)
+        return rebased
 
     def run(self, top_n: int = 20):
         """
@@ -152,25 +166,36 @@ class UniverseStrategy:
         
         equity_series = pd.Series(dict(equity_curve)).sort_index()
         rebalance_df = pd.DataFrame(rebalance_log)
+        benchmark_curve = self.get_benchmark_curve()
 
         # Initialize the result object
         result = BacktestResult(
             equity_curve=equity_series,
             rebalance_log=rebalance_df,
-            benchmark_curve=None  # You can add Nifty 50 later if needed
+            benchmark_curve=benchmark_curve  # You can add Nifty 50 later if needed
         )
 
-        # Print summary
-        summary = result.summary().iloc[0]  # extract row 0 as Series
+        # Print Portfolio summary
+        portfolio_summary = result.portfolio_summary().iloc[0]  # extract row 0 as Series
 
-        print("\n📊 Backtest Summary")
-        print(f"{'CAGR:':20} {summary['CAGR']:.2%}")
-        print(f"{'Absolute Return:':20} {summary['Absolute Return']:.2f}x")
-        print(f"{'Max Drawdown:':20} {summary['Max Drawdown']:.2%}")
-        print(f"{'Volatility:':20} {summary['Volatility']:.2%}")
-        print(f"{'Sharpe Ratio:':20} {summary['Sharpe Ratio']:.2f}")
-        print(f"{'Sortino Ratio:':20} {summary['Sortino Ratio']:.2f}")
-        print(f"{'Alpha:':20} {summary['Alpha'] if summary['Alpha'] is not None else 'N/A'}")
+        print("\n📊Portfolio Backtest Summary")
+        print(f"{'CAGR:':20} {portfolio_summary['CAGR']:.2%}")
+        print(f"{'Absolute Return:':20} {portfolio_summary['Absolute Return']:.2%} ({(1 + portfolio_summary['Absolute Return']):.2f}x)")
+        print(f"{'Max Drawdown:':20} {portfolio_summary['Max Drawdown']:.2%}")
+        print(f"{'Volatility:':20} {portfolio_summary['Volatility']:.2%}")
+        print(f"{'Sharpe Ratio:':20} {portfolio_summary['Sharpe Ratio']:.2f}")
+        print(f"{'Sortino Ratio:':20} {portfolio_summary['Sortino Ratio']:.2f}")
+        print(f"{'Alpha:':20} {portfolio_summary["Alpha"]:.2%}" if portfolio_summary["Alpha"] is not None else f"{'Alpha:':20} N/A")
+
+        # Print Benchmark summary
+        benchmark_summary = result.benchmark_summary()
+        if not benchmark_summary.empty:
+            bm = benchmark_summary.iloc[0]
+            print("\n📈Benchmark Backtest Summary")
+            print(f"{'CAGR:':20} {bm['CAGR']:.2%}")
+            print(f"{'Absolute Return:':20} {bm['Absolute Return']}")
+            print(f"{'Max Drawdown:':20} {bm['Max Drawdown']:.2%}")
+            print(f"{'Volatility:':20} {bm['Volatility']:.2%}")
 
         # Save CSVs
         result.to_csv("reports/momentum_composite/")

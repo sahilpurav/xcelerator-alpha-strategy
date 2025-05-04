@@ -33,7 +33,8 @@ class Stock:
 
         try:
             print(f"[fetching] Downloading {symbol} from Yahoo Finance...")
-            df = yf.download(symbol, start=start_date, progress=False)
+            df = yf.download(symbol, start=start_date, progress=False, auto_adjust=False)
+            df.index = pd.to_datetime(df.index)
 
             if df.empty:
                 print(f"[warning] No data found for {symbol}")
