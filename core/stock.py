@@ -34,19 +34,24 @@ class Stock:
         try:
             print(f"[fetching] Downloading {symbol} from Yahoo Finance...")
             df = yf.download(symbol, start=start_date, progress=False, auto_adjust=False)
-            df.index = pd.to_datetime(df.index)
 
-            if df.empty:
+            if df is None or df.empty:
                 print(f"[warning] No data found for {symbol}")
                 cls._record_invalid_symbol(symbol)
                 return None
 
+            # ✅ Ensure index is datetime
+            df.index = pd.to_datetime(df.index)
+
             # Handle multi-index columns (flatten if necessary)
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
-            df.reset_index(inplace=True)
-            df.columns.name = None
-            df.to_csv(cache_file, index=False)
+
+            # Save to CSV with Date as column, return with DatetimeIndex
+            df_to_save = df.copy().reset_index()
+            df_to_save.columns.name = None
+            df_to_save.to_csv(cache_file, index=False)
+
             return df
 
         except Exception as e:
@@ -56,6 +61,9 @@ class Stock:
         
     @staticmethod
     def _record_invalid_symbol(symbol: str):
+        if symbol.startswith("^"):
+            return  # Don't mark index symbols like ^NSEI as invalid
+        
         os.makedirs("cache", exist_ok=True)
         with open(Stock.INVALID_SYMBOL_FILE, "a") as f:
             f.write(symbol + "\n")
