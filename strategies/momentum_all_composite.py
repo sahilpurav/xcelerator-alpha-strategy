@@ -4,13 +4,17 @@ import numpy as np
 from core.strategies.template.universe import UniverseStrategy
 from utils.indicators import Indicator
 
-class MomentumComposite(UniverseStrategy):
+class MomentumAllComposite(UniverseStrategy):
     def rank_stocks(self, as_of_date: pd.Timestamp) -> pd.DataFrame:
         data = []
 
         for symbol, df in self.price_data.items():
             # Only use data up to this date
             df_subset = df[df.index <= as_of_date]
+
+            # Skip stocks with price less than 100
+            if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
+                continue
 
             ind = Indicator(df_subset)
 
@@ -42,9 +46,6 @@ class MomentumComposite(UniverseStrategy):
         df["ReturnRank"] = df["ReturnScore"].rank(ascending=False)
         df["RSIRank"] = df["RSIScore"].rank(ascending=False)
         df["ProxRank"] = df["HighProxScore"].rank(ascending=False)
-        # df["TotalRank"] = df[["ReturnRank", "RSIRank", "ProxRank"]].mean(axis=1)
-        df["TotalRank"] = df[["ReturnScore"]].mean(axis=1)
-
-        print('Logic: Return Only')
+        df["TotalRank"] = df[["ReturnRank", "RSIScore", "HighProxScore"]].mean(axis=1)
 
         return df.sort_values("TotalRank")

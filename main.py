@@ -1,5 +1,10 @@
-from strategies.momentum_composite import MomentumComposite
-import yfinance as yf
+from strategies.momentum_all_composite import MomentumAllComposite
+from strategies.momentum_pure_price import MomentumPurePrice
+from strategies.momentum_pure_rsi import MomentumPureRsi
+from strategies.momentum_pure_high_proximity import MomentumPureHighProximity
+from strategies.momentum_price_rsi_composite import MomentumPriceRsiComposite
+from strategies.momentum_price_high_proximity_composite import MomentumPriceHighProximityComposite
+from strategies.momentum_rsi_high_proximity_composite import MomentumRsiHighProximityComposite
 
 if __name__ == "__main__":
     config = {
@@ -8,13 +13,20 @@ if __name__ == "__main__":
         "backtest_start_date": "2020-01-01",  # actual backtest start
         "initial_capital": 1_000_000,         # 💰 Starting portfolio value
         "benchmark": "^NSEI",
-        "force_refresh": False
+        "force_refresh": False,
+        "load_benchmark": True,
     }
 
-    strategy = MomentumComposite(config)
+    # strategy = MomentumAllComposite(config)
+    # strategy = MomentumPurePrice(config)
+    # strategy = MomentumPureRsi(config)
+    # strategy = MomentumPureHighProximity(config)
+    strategy = MomentumPriceRsiComposite(config)
+    # strategy = MomentumPriceHighProximityComposite(config)
+    # strategy = MomentumRsiHighProximityComposite(config)
 
     # Run backtest
-    strategy.backtest(top_n=20, rebalance_frequency="ME")
+    strategy.run(top_n=20, rebalance_frequency="W")
 
     # Run on current date
     # strategy.run(top_n=20)

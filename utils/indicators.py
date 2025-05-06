@@ -53,6 +53,21 @@ class Indicator:
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
     
+    def dma(self, period: int = 200) -> float:
+        """
+        Calculates the n-day Simple Moving Average (e.g., 200 DMA) on Close price.
+
+        Args:
+            period (int): Number of days for the moving average
+
+        Returns:
+            float: Moving average value or None if not enough data
+        """
+        if self.df.shape[0] < period:
+            return None
+
+        return self.df["Close"].rolling(window=period).mean().iloc[-1]
+    
     def high_proximity(self, lookback: int = 252) -> float:
         """
         Calculates proximity to the highest close in the last `lookback` days.

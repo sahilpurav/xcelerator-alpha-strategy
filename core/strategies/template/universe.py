@@ -5,6 +5,7 @@ import pandas as pd
 from core.reporting.backtest_result import BacktestResult
 import re
 import time
+from utils.indicators import Indicator
 
 class UniverseStrategy:
     def __init__(self, config: Dict):
@@ -37,7 +38,7 @@ class UniverseStrategy:
         """
         price_data = {}
         for symbol in self.yahoo_symbols:
-            time.sleep(1.5)  # Avoid hitting Yahoo API limits
+            # time.sleep(1.5)  # Avoid hitting Yahoo API limits
             df = Stock.get_price(
                 symbol,
                 start_date=self.start_date,
@@ -45,7 +46,38 @@ class UniverseStrategy:
             )
             if df is not None and not df.empty:
                 price_data[symbol] = df
+
+        # Load benchmark symbol (e.g., ^NSEI) if requested
+        if self.config.get("load_benchmark", False):
+            benchmark_symbol = self.config.get("benchmark", "^NSEI")
+            df_benchmark = Stock.get_price(
+                benchmark_symbol,
+                start_date=self.start_date,
+                force_refresh=self.force_refresh
+            )
+            if df_benchmark is not None and not df_benchmark.empty:
+                price_data[benchmark_symbol] = df_benchmark
+
         return price_data
+    
+    def is_market_strong(self, as_of_date: pd.Timestamp) -> bool:
+        symbol = self.config.get("benchmark", "^NSEI")
+        df = self.price_data.get(symbol)
+        if df is None:
+            return True  # Assume strong if not available
+
+        df_subset = df[df.index <= as_of_date]
+        if df_subset.shape[0] < 200:
+            return True  # Not enough data
+
+        ind = Indicator(df_subset)
+        dma_200 = ind.dma(200)
+        latest_close = df_subset["Close"].iloc[-1]
+
+        if dma_200 is None:
+            return True
+
+        return latest_close > dma_200
     
     def get_rebalance_dates(self, freq: str = "W") -> list[pd.Timestamp]:
         """
@@ -114,6 +146,7 @@ class UniverseStrategy:
         """
         Backtest scaffold: print rebalance dates and prepare equity curve.
         """
+        print("Starting backtest...")
         start_date = pd.to_datetime(self.config.get("backtest_start_date"))
         portfolio_value = self.config.get("initial_capital", 1_000_000)
         rebalance_dates = self.get_rebalance_dates(freq=rebalance_frequency)
