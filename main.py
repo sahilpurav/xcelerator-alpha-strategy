@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # strategy = MomentumRsiHighProximityComposite(config)
 
     # Run backtest
-    strategy.run(top_n=20, rebalance_frequency="W")
+    strategy.backtest(top_n=20, rebalance_frequency="W")
 
     # Run on current date
     # strategy.run(top_n=20)

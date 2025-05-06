@@ -21,6 +21,10 @@ class MomentumPriceRsiComposite(UniverseStrategy):
             if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
                 continue
 
+            # Skip stocks with price greater than 10000
+            if df_subset.empty or df_subset['Close'].iloc[-1] > 10000:
+                continue
+
             ind = Indicator(df_subset)
 
             multi_timeframe_returns = [ind.rtn(22), ind.rtn(44), ind.rtn(66)]
