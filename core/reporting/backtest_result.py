@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from typing import Optional
+from collections import defaultdict
 
 class BacktestResult:
     def __init__(
@@ -53,6 +54,52 @@ class BacktestResult:
         initial = self.equity.iloc[0]
         final = self.equity.iloc[-1]
         return (final / initial) - 1
+    
+    def compute_average_churn(self) -> float:
+        if self.rebalance_log is None or self.rebalance_log.empty:
+            return 0.0
+
+        grouped = self.rebalance_log.groupby("Date")["Symbol"].apply(set)
+        dates = grouped.index.tolist()
+
+        churn_counts = [
+            len(grouped.iloc[i - 1] - grouped.iloc[i])
+            for i in range(1, len(dates))
+        ]
+
+        return round(sum(churn_counts) / len(churn_counts), 2) if churn_counts else 0.0
+    
+    def compute_average_holding_period(self) -> float:
+        if self.rebalance_log is None or self.rebalance_log.empty:
+            return 0.0
+
+        grouped = self.rebalance_log.groupby("Date")["Symbol"].apply(set)
+        dates = grouped.index.tolist()
+        date_to_idx = {date: i for i, date in enumerate(dates)}
+
+        tracker = defaultdict(list)
+        active = {}
+
+        for date in dates:
+            current = grouped[date]
+            for s in current:
+                if s not in active:
+                    active[s] = date
+
+            exited = set(active) - current
+            for s in exited:
+                tracker[s].append((active.pop(s), date))
+
+        for s, d in active.items():
+            tracker[s].append((d, dates[-1]))
+
+        durations = [
+            date_to_idx[exit_] - date_to_idx[entry]
+            for periods in tracker.values()
+            for entry, exit_ in periods
+        ]
+
+        return round(sum(durations) / len(durations), 2) if durations else 0.0
 
     def portfolio_summary(self) -> pd.DataFrame:
         return pd.DataFrame({
@@ -62,7 +109,9 @@ class BacktestResult:
             "Volatility": [self.compute_volatility()],
             "Sharpe Ratio": [self.compute_sharpe()],
             "Sortino Ratio": [self.compute_sortino()],
-            "Alpha": [self.compute_alpha()]
+            "Alpha": [self.compute_alpha()],
+            "Avg Churn/Rebalance": [self.compute_average_churn()],
+            "Avg Holding Period": [self.compute_average_holding_period()]
         })
     
     def benchmark_summary(self) -> pd.DataFrame:
@@ -82,7 +131,6 @@ class BacktestResult:
             "Max Drawdown": [round(max_dd, 4)],
             "Volatility": [round(volatility, 4)]
         })
-
 
     def to_csv(self, output_dir="reports/"):
         os.makedirs(output_dir, exist_ok=True)

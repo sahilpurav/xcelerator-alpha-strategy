@@ -3,6 +3,8 @@ from core.stock import Stock
 from typing import Dict
 import pandas as pd
 from core.reporting.backtest_result import BacktestResult
+import re
+import time
 
 class UniverseStrategy:
     def __init__(self, config: Dict):
@@ -35,6 +37,7 @@ class UniverseStrategy:
         """
         price_data = {}
         for symbol in self.yahoo_symbols:
+            time.sleep(1.5)  # Avoid hitting Yahoo API limits
             df = Stock.get_price(
                 symbol,
                 start_date=self.start_date,
@@ -117,7 +120,7 @@ class UniverseStrategy:
         equity_curve = []
         rebalance_log = []
 
-        print(f"\n🔁 Rebalancing from {start_date.date()} every {rebalance_frequency}")
+        print(f"\n🔁 Rebalancing top {top_n} stocks from {start_date.date()} every {rebalance_frequency}")
 
         for date in rebalance_dates:
             if date < start_date:
@@ -186,6 +189,8 @@ class UniverseStrategy:
         print(f"{'Sharpe Ratio:':20} {portfolio_summary['Sharpe Ratio']:.2f}")
         print(f"{'Sortino Ratio:':20} {portfolio_summary['Sortino Ratio']:.2f}")
         print(f"{'Alpha:':20} {portfolio_summary["Alpha"]:.2%}" if portfolio_summary["Alpha"] is not None else f"{'Alpha:':20} N/A")
+        print(f"{'Avg Churn/Rebalance:':30} {portfolio_summary['Avg Churn/Rebalance']}")
+        print(f"{'Avg Holding Period:':30} {portfolio_summary['Avg Holding Period']} rebalances")
 
         # Print Benchmark summary
         benchmark_summary = result.benchmark_summary()
@@ -198,4 +203,5 @@ class UniverseStrategy:
             print(f"{'Volatility:':20} {bm['Volatility']:.2%}")
 
         # Save CSVs
-        result.to_csv("reports/momentum_composite/")
+        strategy_classname = re.sub(r'(?<!^)(?=[A-Z])', '_', self.__class__.__name__).lower()
+        result.to_csv(f"reports/{strategy_classname}/")

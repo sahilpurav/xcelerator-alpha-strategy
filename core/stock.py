@@ -2,6 +2,7 @@ import os
 import yfinance as yf
 import pandas as pd
 from typing import Optional
+from curl_cffi import requests
 
 class Stock:
     CACHE_DIR = "cache/stock"
@@ -33,7 +34,8 @@ class Stock:
 
         try:
             print(f"[fetching] Downloading {symbol} from Yahoo Finance...")
-            df = yf.download(symbol, start=start_date, progress=False, auto_adjust=False)
+            session = requests.Session(impersonate="chrome")
+            df = yf.download(symbol, start=start_date, progress=False, auto_adjust=False, session=session)
 
             if df is None or df.empty:
                 print(f"[warning] No data found for {symbol}")

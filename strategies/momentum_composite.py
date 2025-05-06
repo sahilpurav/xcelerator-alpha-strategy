@@ -42,6 +42,9 @@ class MomentumComposite(UniverseStrategy):
         df["ReturnRank"] = df["ReturnScore"].rank(ascending=False)
         df["RSIRank"] = df["RSIScore"].rank(ascending=False)
         df["ProxRank"] = df["HighProxScore"].rank(ascending=False)
-        df["TotalRank"] = df[["ReturnRank", "RSIRank", "ProxRank"]].mean(axis=1)
+        # df["TotalRank"] = df[["ReturnRank", "RSIRank", "ProxRank"]].mean(axis=1)
+        df["TotalRank"] = df[["ReturnScore"]].mean(axis=1)
+
+        print('Logic: Return Only')
 
         return df.sort_values("TotalRank")
