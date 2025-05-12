@@ -5,6 +5,7 @@ from strategies.momentum_pure_high_proximity import MomentumPureHighProximity
 from strategies.momentum_price_rsi_composite import MomentumPriceRsiComposite
 from strategies.momentum_price_high_proximity_composite import MomentumPriceHighProximityComposite
 from strategies.momentum_rsi_high_proximity_composite import MomentumRsiHighProximityComposite
+from core.stock import Stock
 
 if __name__ == "__main__":
     config = {
@@ -26,8 +27,7 @@ if __name__ == "__main__":
     # strategy = MomentumRsiHighProximityComposite(config)
 
     # Run backtest
-    strategy.backtest(top_n=20, rebalance_frequency="W")
+    strategy.backtest(top_n=15, rebalance_frequency="W")
 
     # Run on current date
-    # strategy.run(top_n=20)
-
+    # strategy.run(top_n=15)

@@ -8,7 +8,6 @@ class MomentumPriceRsiComposite(UniverseStrategy):
     def rank_stocks(self, as_of_date: pd.Timestamp) -> pd.DataFrame:
         
         if not self.is_market_strong(as_of_date):
-            print(f"⚠️ Market weak on {as_of_date.date()} — going to cash.")
             return pd.DataFrame(columns=["Symbol", "ReturnScore", "RSIScore", "ReturnRank", "RSIRank", "TotalRank"])
 
         data = []

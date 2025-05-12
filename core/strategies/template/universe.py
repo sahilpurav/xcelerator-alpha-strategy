@@ -143,9 +143,6 @@ class UniverseStrategy:
 
     
     def backtest(self, top_n: int = 20, rebalance_frequency: str = "W"):
-        """
-        Backtest scaffold: print rebalance dates and prepare equity curve.
-        """
         print("Starting backtest...")
         start_date = pd.to_datetime(self.config.get("backtest_start_date"))
         portfolio_value = self.config.get("initial_capital", 1_000_000)
@@ -160,8 +157,23 @@ class UniverseStrategy:
                 continue
 
             rankings = self.rank_stocks(as_of_date=date)
+
+            if rankings.empty:
+                # Market is weak, go to cash
+                rebalance_log.append({
+                    "Date": date,
+                    "Symbol": "CASH",
+                    "Weight": 1.0,
+                    "Price": None,
+                    "Value": round(portfolio_value, 2)
+                })
+                equity_curve.append((date, portfolio_value))
+                print(f"➡️ {date.date()} | Market weak, going to cash. Portfolio: ₹{portfolio_value:,.0f}")
+                continue
+
             top_symbols = rankings.head(top_n)["Symbol"].tolist()
             print("Top picks:", top_symbols)
+
             # Step 1: Equal-weight allocation
             weight = 1 / top_n
             allocations = {symbol: weight for symbol in top_symbols}
@@ -199,7 +211,7 @@ class UniverseStrategy:
             equity_curve.append((next_date, portfolio_value))
 
             print(f"➡️ {next_date.date()} | Return: {period_return:.2%} | Portfolio: ₹{portfolio_value:,.0f}")
-        
+
         equity_series = pd.Series(dict(equity_curve)).sort_index()
         rebalance_df = pd.DataFrame(rebalance_log)
         benchmark_curve = self.get_benchmark_curve()
@@ -208,7 +220,7 @@ class UniverseStrategy:
         result = BacktestResult(
             equity_curve=equity_series,
             rebalance_log=rebalance_df,
-            benchmark_curve=benchmark_curve  # You can add Nifty 50 later if needed
+            benchmark_curve=benchmark_curve
         )
 
         # Print Portfolio summary

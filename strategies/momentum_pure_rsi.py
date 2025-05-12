@@ -6,6 +6,11 @@ from utils.indicators import Indicator
 
 class MomentumPureRsi(UniverseStrategy):
     def rank_stocks(self, as_of_date: pd.Timestamp) -> pd.DataFrame:
+
+        if not self.is_market_strong(as_of_date):
+            print(f"⚠️ Market weak on {as_of_date.date()} — going to cash.")
+            return pd.DataFrame(columns=["Symbol", "ReturnScore", "RSIScore", "ReturnRank", "RSIRank", "TotalRank"])
+
         data = []
 
         for symbol, df in self.price_data.items():
@@ -14,6 +19,10 @@ class MomentumPureRsi(UniverseStrategy):
 
             # Skip stocks with price less than 100
             if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
+                continue
+
+            # Skip stocks with price greater than 10000
+            if df_subset.empty or df_subset['Close'].iloc[-1] > 10000:
                 continue
 
             ind = Indicator(df_subset)

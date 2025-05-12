@@ -54,8 +54,17 @@ class Universe:
             with open(Stock.INVALID_SYMBOL_FILE) as f:
                 invalid = set(line.strip() for line in f)
 
+        # Exclude stocks which are under ASM
+        asm = set()
+        if os.path.exists(Stock.ASM_SYMBOL_FILE):
+            asm_df = pd.read_csv(Stock.ASM_SYMBOL_FILE)
+            asm = set(sym.strip() + ".NS" for sym in asm_df["SYMBOL"].astype(str))
+
+        # Combine both sets for exclusion
+        excluded_symbols = invalid | asm
+
         # Filter them out
-        raw_symbols = [s for s in raw_symbols if f"{s}.NS" not in invalid]
+        raw_symbols = [s for s in raw_symbols if f"{s}.NS" not in excluded_symbols]
         yahoo_symbols = [f"{s}.NS" for s in raw_symbols]
 
         return raw_symbols, yahoo_symbols
