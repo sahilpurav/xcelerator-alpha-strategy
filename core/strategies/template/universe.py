@@ -151,6 +151,7 @@ class UniverseStrategy:
         rebalance_dates = self.get_rebalance_dates(freq=rebalance_frequency)
         equity_curve = []
         rebalance_log = []
+        current_holdings = {}
 
         print(f"\n🔁 Rebalancing top {top_n} stocks from {start_date.date()} every {rebalance_frequency}")
 
@@ -177,21 +178,58 @@ class UniverseStrategy:
             print("Top picks:", top_symbols)
 
             # Step 1: Equal-weight allocation
-            weight = 1 / top_n
-            allocations = {symbol: weight for symbol in top_symbols}
+            # weight = 1 / top_n
+            # allocations = {symbol: weight for symbol in top_symbols}
 
-            # 🔽 LOG the trade here BEFORE moving to next_date
-            for symbol, weight in allocations.items():
-                price = self.get_price_on_date(symbol, date)
-                value = portfolio_value * weight
+            # # 🔽 LOG the trade here BEFORE moving to next_date
+            # for symbol, weight in allocations.items():
+            #     price = self.get_price_on_date(symbol, date)
+            #     value = portfolio_value * weight
 
-                rebalance_log.append({
-                    "Date": date,
-                    "Symbol": symbol,
-                    "Weight": round(weight, 4),
-                    "Price": round(price, 2) if price else None,
-                    "Value": round(value, 2)
-                })
+            #     rebalance_log.append({
+            #         "Date": date,
+            #         "Symbol": symbol,
+            #         "Weight": round(weight, 4),
+            #         "Price": round(price, 2) if price else None,
+            #         "Value": round(value, 2)
+            #     })
+
+            # Step 1: Entry/Exit-Only Allocation
+            new_allocations = {}
+            for symbol in top_symbols:
+                if symbol in current_holdings:
+                    # Already in portfolio → no new trade
+                    new_allocations[symbol] = current_holdings[symbol]
+                else:
+                    # New entry → assign equal weight
+                    new_allocations[symbol] = 1 / top_n
+                    price = self.get_price_on_date(symbol, date)
+                    value = portfolio_value * (1 / top_n)
+                    rebalance_log.append({
+                        "Date": date,
+                        "Symbol": symbol,
+                        "Action": "BUY",
+                        "Weight": round(1 / top_n, 4),
+                        "Price": round(price, 2) if price else None,
+                        "Value": round(value, 2)
+                    })
+
+            for symbol in list(current_holdings.keys()):
+                if symbol not in top_symbols:
+                    # Stock is removed from portfolio → SELL
+                    price = self.get_price_on_date(symbol, date)
+                    weight = current_holdings[symbol]
+                    value = portfolio_value * weight
+                    rebalance_log.append({
+                        "Date": date,
+                        "Symbol": symbol,
+                        "Action": "SELL",
+                        "Weight": round(weight, 4),
+                        "Price": round(price, 2) if price else None,
+                        "Value": round(value, 2)
+                    })
+
+            current_holdings = new_allocations
 
             # Step 2: Get next rebalance date
             i = rebalance_dates.index(date)
@@ -202,7 +240,7 @@ class UniverseStrategy:
 
             # Step 3: Simulate portfolio return
             period_return = 0
-            for symbol, w in allocations.items():
+            for symbol, w in current_holdings.items():
                 r = self.get_return_between(symbol, date, next_date)
                 period_return += r * w
 
