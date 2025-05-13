@@ -145,148 +145,150 @@ class UniverseStrategy:
 
     
     def backtest(self, top_n: int = 20, rebalance_frequency: str = "W"):
-        print("Starting backtest...")
+        """
+        Backtest the strategy using the specified parameters.
+        """
         start_date = pd.to_datetime(self.config.get("backtest_start_date"))
-        portfolio_value = self.config.get("initial_capital", 1_000_000)
+        initial_capital = self.config.get("initial_capital", 1_000_000)
         rebalance_dates = self.get_rebalance_dates(freq=rebalance_frequency)
+
         equity_curve = []
         rebalance_log = []
-        current_holdings = {}
+        current_holdings = {}  # symbol -> (qty, buy_price)
+        cash = initial_capital
 
-        print(f"\n🔁 Rebalancing top {top_n} stocks from {start_date.date()} every {rebalance_frequency}")
+        print(f"\n\U0001f501 Rebalancing top {top_n} stocks from {start_date.date()} every {rebalance_frequency}")
 
-        for date in rebalance_dates:
+        for i, date in enumerate(rebalance_dates):
             if date < start_date:
                 continue
 
             rankings = self.rank_stocks(as_of_date=date)
 
             if rankings.empty:
-                # Market is weak, go to cash
+                # Calculate total portfolio value even in cash
+                equity_value = 0
+                for symbol, (qty, _) in current_holdings.items():
+                    price = self.get_price_on_date(symbol, date)
+                    if price:
+                        equity_value += qty * price
+                portfolio_value = equity_value + cash
+
                 rebalance_log.append({
                     "Date": date,
                     "Symbol": "CASH",
-                    "Weight": 1.0,
+                    "Action": "HOLD",
+                    "Qty": None,
                     "Price": None,
                     "Value": round(portfolio_value, 2)
                 })
                 equity_curve.append((date, portfolio_value))
                 print(f"➡️ {date.date()} | Market weak, going to cash. Portfolio: ₹{portfolio_value:,.0f}")
+
+                # Liquidate all positions
+                current_holdings = {}
+                cash = portfolio_value  # carry forward real portfolio value as cash
                 continue
 
             top_symbols = rankings.head(top_n)["Symbol"].tolist()
             print("Top picks:", top_symbols)
 
-            # Step 1: Equal-weight allocation
-            # weight = 1 / top_n
-            # allocations = {symbol: weight for symbol in top_symbols}
+            # Sell stocks that are no longer in top N
+            new_cash = cash
+            for symbol in list(current_holdings.keys()):
+                if symbol not in top_symbols:
+                    qty, buy_price = current_holdings[symbol]
+                    sell_price = self.get_price_on_date(symbol, date)
+                    if sell_price:
+                        proceeds = qty * sell_price
+                        new_cash += proceeds
+                        rebalance_log.append({
+                            "Date": date,
+                            "Symbol": symbol,
+                            "Action": "SELL",
+                            "Qty": qty,
+                            "Price": round(sell_price, 2),
+                            "Value": round(proceeds, 2)
+                        })
+                    del current_holdings[symbol]
 
-            # # 🔽 LOG the trade here BEFORE moving to next_date
-            # for symbol, weight in allocations.items():
-            #     price = self.get_price_on_date(symbol, date)
-            #     value = portfolio_value * weight
+            # Buy new stocks with available cash
+            slots_available = top_n - len(current_holdings)
+            capital_per_stock = new_cash / slots_available if slots_available > 0 else 0
 
-            #     rebalance_log.append({
-            #         "Date": date,
-            #         "Symbol": symbol,
-            #         "Weight": round(weight, 4),
-            #         "Price": round(price, 2) if price else None,
-            #         "Value": round(value, 2)
-            #     })
-
-            # Step 1: Entry/Exit-Only Allocation
-            new_allocations = {}
             for symbol in top_symbols:
                 if symbol in current_holdings:
-                    # Already in portfolio → no new trade
-                    new_allocations[symbol] = current_holdings[symbol]
-                else:
-                    # New entry → assign equal weight
-                    new_allocations[symbol] = 1 / top_n
-                    price = self.get_price_on_date(symbol, date)
-                    value = portfolio_value * (1 / top_n)
+                    continue
+
+                price = self.get_price_on_date(symbol, date)
+                if price is None or price == 0:
+                    continue
+
+                qty = int(capital_per_stock // price)
+                cost = qty * price
+                if qty > 0:
+                    current_holdings[symbol] = (qty, price)
+                    new_cash -= cost
                     rebalance_log.append({
                         "Date": date,
                         "Symbol": symbol,
                         "Action": "BUY",
-                        "Weight": round(1 / top_n, 4),
-                        "Price": round(price, 2) if price else None,
-                        "Value": round(value, 2)
+                        "Qty": qty,
+                        "Price": round(price, 2),
+                        "Value": round(cost, 2)
                     })
 
-            for symbol in list(current_holdings.keys()):
-                if symbol not in top_symbols:
-                    # Stock is removed from portfolio → SELL
-                    price = self.get_price_on_date(symbol, date)
-                    weight = current_holdings[symbol]
-                    value = portfolio_value * weight
-                    rebalance_log.append({
-                        "Date": date,
-                        "Symbol": symbol,
-                        "Action": "SELL",
-                        "Weight": round(weight, 4),
-                        "Price": round(price, 2) if price else None,
-                        "Value": round(value, 2)
-                    })
+            cash = new_cash
 
-            current_holdings = new_allocations
-
-            # Step 2: Get next rebalance date
-            i = rebalance_dates.index(date)
-
+            # Compute portfolio value at next rebalance date
             if i + 1 >= len(rebalance_dates):
-                break  # end of backtest
+                break
             next_date = rebalance_dates[i + 1]
 
-            # Step 3: Simulate portfolio return
-            period_return = 0
-            for symbol, w in current_holdings.items():
-                r = self.get_return_between(symbol, date, next_date)
-                period_return += r * w
+            equity_value = 0
+            for symbol, (qty, _) in current_holdings.items():
+                price = self.get_price_on_date(symbol, next_date)
+                if price:
+                    equity_value += qty * price
 
-            # Step 4: Update portfolio value
-            portfolio_value *= (1 + period_return)
-
-            # Step 5: Save equity value
+            portfolio_value = equity_value + cash
             equity_curve.append((next_date, portfolio_value))
 
-            print(f"➡️ {next_date.date()} | Return: {period_return:.2%} | Portfolio: ₹{portfolio_value:,.0f}")
+            prev_value = equity_curve[-2][1] if len(equity_curve) > 1 else initial_capital
+            return_pct = (portfolio_value / prev_value) - 1 if prev_value else 0
+            print(f"\u27a1\ufe0f {next_date.date()} | Weekly Return: {return_pct:.2%} | Portfolio: ₹{portfolio_value:,.0f}")
 
+        # Finalize results
         equity_series = pd.Series(dict(equity_curve)).sort_index()
         rebalance_df = pd.DataFrame(rebalance_log)
         benchmark_curve = self.get_benchmark_curve()
 
-        # Initialize the result object
         result = BacktestResult(
             equity_curve=equity_series,
             rebalance_log=rebalance_df,
             benchmark_curve=benchmark_curve
         )
 
-        # Print Portfolio summary
-        portfolio_summary = result.portfolio_summary().iloc[0]  # extract row 0 as Series
-
-        print("\n📊Portfolio Backtest Summary")
+        portfolio_summary = result.portfolio_summary().iloc[0]
+        print("\n\U0001f4caPortfolio Backtest Summary")
         print(f"{'CAGR:':20} {portfolio_summary['CAGR']:.2%}")
         print(f"{'Absolute Return:':20} {portfolio_summary['Absolute Return']:.2%} ({(1 + portfolio_summary['Absolute Return']):.2f}x)")
         print(f"{'Max Drawdown:':20} {portfolio_summary['Max Drawdown']:.2%}")
         print(f"{'Volatility:':20} {portfolio_summary['Volatility']:.2%}")
         print(f"{'Sharpe Ratio:':20} {portfolio_summary['Sharpe Ratio']:.2f}")
         print(f"{'Sortino Ratio:':20} {portfolio_summary['Sortino Ratio']:.2f}")
-        print(f"{'Alpha:':20} {portfolio_summary["Alpha"]:.2%}" if portfolio_summary["Alpha"] is not None else f"{'Alpha:':20} N/A")
+        print(f"{'Alpha:':20} {portfolio_summary['Alpha']:.2%}" if portfolio_summary['Alpha'] is not None else f"{'Alpha:':20} N/A")
         print(f"{'Avg Churn/Rebalance:':30} {portfolio_summary['Avg Churn/Rebalance']}")
         print(f"{'Avg Holding Period:':30} {portfolio_summary['Avg Holding Period']} rebalances")
 
-        # Print Benchmark summary
         benchmark_summary = result.benchmark_summary()
         if not benchmark_summary.empty:
             bm = benchmark_summary.iloc[0]
-            print("\n📈Benchmark Backtest Summary")
+            print("\n\U0001f4c8Benchmark Backtest Summary")
             print(f"{'CAGR:':20} {bm['CAGR']:.2%}")
             print(f"{'Absolute Return:':20} {bm['Absolute Return']}")
             print(f"{'Max Drawdown:':20} {bm['Max Drawdown']:.2%}")
             print(f"{'Volatility:':20} {bm['Volatility']:.2%}")
 
-        # Save CSVs
         strategy_classname = re.sub(r'(?<!^)(?=[A-Z])', '_', self.__class__.__name__).lower()
         result.to_csv(f"reports/{strategy_classname}/")
