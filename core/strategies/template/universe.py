@@ -138,8 +138,10 @@ class UniverseStrategy:
         """
         latest_date = max(df.index.max() for df in self.price_data.values())
         rankings = self.rank_stocks(as_of_date=latest_date)
-        top = rankings.head(top_n)
-        print(top)
+        top = rankings.head(top_n).copy()  # Create an explicit copy
+        top['Symbol'] = top['Symbol'].str.replace('.NS', '', regex=False)  # Remove '.NS' suffix
+        for symbol in top['Symbol'].tolist():
+            print(symbol)
 
     
     def backtest(self, top_n: int = 20, rebalance_frequency: str = "W"):
