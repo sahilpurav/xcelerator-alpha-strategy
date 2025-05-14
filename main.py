@@ -1,11 +1,4 @@
-from strategies.momentum_all_composite import MomentumAllComposite
-from strategies.momentum_pure_price import MomentumPurePrice
-from strategies.momentum_pure_rsi import MomentumPureRsi
-from strategies.momentum_pure_high_proximity import MomentumPureHighProximity
 from strategies.momentum_price_rsi_composite import MomentumPriceRsiComposite
-from strategies.momentum_price_high_proximity_composite import MomentumPriceHighProximityComposite
-from strategies.momentum_rsi_high_proximity_composite import MomentumRsiHighProximityComposite
-from core.stock import Stock
 
 if __name__ == "__main__":
     config = {
@@ -18,14 +11,9 @@ if __name__ == "__main__":
         "load_benchmark": True,
     }
 
-    # strategy = MomentumAllComposite(config)
-    # strategy = MomentumPurePrice(config)
-    # strategy = MomentumPureRsi(config)
-    # strategy = MomentumPureHighProximity(config)
+    
     strategy = MomentumPriceRsiComposite(config)
-    # strategy = MomentumPriceHighProximityComposite(config)
-    # strategy = MomentumRsiHighProximityComposite(config)
-
+    
     # Run backtest
     strategy.backtest(top_n=15, rebalance_frequency="W")
 
