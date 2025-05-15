@@ -5,7 +5,7 @@ if __name__ == "__main__":
         "universe": "nifty500",
         "start_date": "2018-12-01",           # for indicator warm-up
         "backtest_start_date": "2020-01-01",  # actual backtest start
-        "initial_capital": 1700000,         # 💰 Starting portfolio value
+        "initial_capital": 1000000,         # 💰 Starting portfolio value
         "benchmark": "^NSEI",
         "force_refresh": False,
         "load_benchmark": True,
