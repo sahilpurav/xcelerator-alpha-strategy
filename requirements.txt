@@ -2,4 +2,3 @@ pandas
 requests
 yfinance
 numpy
-curl_cffi

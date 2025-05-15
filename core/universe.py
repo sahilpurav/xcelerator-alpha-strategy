@@ -4,6 +4,8 @@ import requests
 from io import StringIO
 from typing import List, Tuple
 from core.stock import Stock
+import json
+from utils.file import File
 
 class Universe:
     CACHE_DIR = "cache/universe"
@@ -14,6 +16,28 @@ class Universe:
         Returns the NSE index CSV URL for given universe size like 100, 200, 500
         """
         return f"https://archives.nseindia.com/content/indices/ind_nifty{size}list.csv"
+    
+    @staticmethod
+    def _get_asm_symbols(filepath="cache/asm.json"):
+        try: 
+            if File.is_older_than(filepath, 1):
+                raise Exception(
+                    f"\n ⚠️  ASM file is missing or outdated.\n"
+                    f"Please download it manually from:\n"
+                    f"https://www.nseindia.com/api/reportASM?json=true\n"
+                    f"and save it to: {filepath}"
+                )   
+            with open(filepath, "r") as f:
+                data = json.load(f)
+
+            long_term = [entry["symbol"].strip() + ".NS" for entry in data.get("longterm", {}).get("data", [])]
+            short_term = [entry["symbol"].strip() + ".NS" for entry in data.get("shortterm", {}).get("data", [])]
+
+            return set(long_term + short_term)  # or return both separately if needed
+        except Exception as e:
+            print(f"[ASM Load Error] {e}")
+            exit(0)
+
 
     @classmethod
     def get_symbols(cls, universe: str, force_refresh: bool = False) -> Tuple[List[str], List[str]]:
@@ -55,10 +79,7 @@ class Universe:
                 invalid = set(line.strip() for line in f)
 
         # Exclude stocks which are under ASM
-        asm = set()
-        if os.path.exists(Stock.ASM_SYMBOL_FILE):
-            asm_df = pd.read_csv(Stock.ASM_SYMBOL_FILE)
-            asm = set(sym.strip() + ".NS" for sym in asm_df["SYMBOL"].astype(str))
+        asm = cls._get_asm_symbols()
 
         # Combine both sets for exclusion
         excluded_symbols = invalid | asm
