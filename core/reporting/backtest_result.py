@@ -10,10 +10,12 @@ class BacktestResult:
         equity_curve: pd.Series,
         benchmark_curve: Optional[pd.Series] = None,
         rebalance_log: Optional[pd.DataFrame] = None,
+        daily_equity_curve: Optional[pd.Series] = None
     ):
         self.equity = equity_curve
         self.benchmark = benchmark_curve
         self.rebalance_log = rebalance_log
+        self.daily_equity = daily_equity_curve
 
     def compute_cagr(self):
         start, end = self.equity.index[0], self.equity.index[-1]
@@ -49,12 +51,12 @@ class BacktestResult:
         strategy_return = self.compute_cagr()
         bench_return = (self.benchmark.iloc[-1] / self.benchmark.iloc[0]) ** (1 / ((self.benchmark.index[-1] - self.benchmark.index[0]).days / 365.25)) - 1
         return strategy_return - bench_return
-    
+
     def compute_absolute_return(self):
         initial = self.equity.iloc[0]
         final = self.equity.iloc[-1]
         return (final / initial) - 1
-    
+
     def compute_average_churn(self) -> float:
         if self.rebalance_log is None or self.rebalance_log.empty:
             return 0.0
@@ -68,7 +70,7 @@ class BacktestResult:
         ]
 
         return round(sum(churn_counts) / len(churn_counts), 2) if churn_counts else 0.0
-    
+
     def compute_average_holding_period(self) -> float:
         if self.rebalance_log is None or self.rebalance_log.empty:
             return 0.0
@@ -113,7 +115,7 @@ class BacktestResult:
             "Avg Churn/Rebalance": [self.compute_average_churn()],
             "Avg Holding Period": [self.compute_average_holding_period()]
         })
-    
+
     def benchmark_summary(self) -> pd.DataFrame:
         if self.benchmark is None or self.benchmark.empty:
             return pd.DataFrame()
@@ -134,6 +136,8 @@ class BacktestResult:
 
     def to_csv(self, output_dir="reports/"):
         os.makedirs(output_dir, exist_ok=True)
-        self.equity.to_csv(os.path.join(output_dir, "equity_curve.csv"))
+        self.equity.to_csv(os.path.join(output_dir, "equity_curve.csv"), header=["Portfolio Value"], index_label="Date")
+        if self.daily_equity is not None:
+            self.daily_equity.to_csv(os.path.join(output_dir, "equity_curve_daily.csv"), header=["Portfolio Value"], index_label="Date")
         if self.rebalance_log is not None:
             self.rebalance_log.to_csv(os.path.join(output_dir, "rebalance_log.csv"), index=False)

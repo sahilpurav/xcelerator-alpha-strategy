@@ -3,6 +3,7 @@ from core.stock import Stock
 from typing import Dict
 import pandas as pd
 from core.reporting.backtest_result import BacktestResult
+from core.reporting.equity_curve import EquityCurveSimulator
 import re
 import time
 from utils.indicators import Indicator
@@ -38,7 +39,6 @@ class UniverseStrategy:
         """
         price_data = {}
         for symbol in self.yahoo_symbols:
-            # time.sleep(1.5)  # Avoid hitting Yahoo API limits
             df = Stock.get_price(
                 symbol,
                 start_date=self.start_date,
@@ -273,10 +273,21 @@ class UniverseStrategy:
         rebalance_df = pd.DataFrame(rebalance_log)
         benchmark_curve = self.get_benchmark_curve()
 
+        benchmark_symbol = self.config.get("benchmark", "^NSEI")
+        nsei_data = self.price_data.get(benchmark_symbol)
+
+        daily_equity_series = EquityCurveSimulator.simulate(
+            rebalance_log=rebalance_df,
+            price_data=self.price_data,
+            nsei_data=nsei_data,
+            initial_capital=initial_capital
+        )
+
         result = BacktestResult(
             equity_curve=equity_series,
             rebalance_log=rebalance_df,
-            benchmark_curve=benchmark_curve
+            benchmark_curve=benchmark_curve,
+            daily_equity_curve=daily_equity_series
         )
 
         portfolio_summary = result.portfolio_summary().iloc[0]
