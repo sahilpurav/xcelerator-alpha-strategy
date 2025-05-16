@@ -20,8 +20,8 @@ class MomentumPriceRsiComposite(UniverseStrategy):
             if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
                 continue
 
+            # Skip stocks with less than 66 days of data
             if len(df_subset) < 66:
-                print(f"[SKIP: {symbol}] Less than 66 days of data as of {as_of_date.date()}")
                 continue
 
             # Skip stocks with price greater than 10000
