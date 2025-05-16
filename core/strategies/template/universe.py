@@ -88,30 +88,32 @@ class UniverseStrategy:
         rebalance_dates = all_dates.resample(freq).first().dropna().index.tolist()
         return rebalance_dates
     
-    def get_price_on_date(self, symbol: str, date: pd.Timestamp) -> float:
+    def get_price_on_date(self, symbol: str, date: pd.Timestamp) -> tuple[float, pd.Timestamp]:
         """
-        Returns the close price for the given symbol on the specified date.
-        Falls back to the nearest previous available date if missing.
+        Returns (price, actual_date_used).
+        Falls back to nearest previous available date if date not in index.
         """
         df = self.price_data.get(symbol)
         if df is None or df.empty:
-            return None
+            return None, None
 
-        if date not in df.index:
-            # Use nearest previous date
-            df = df[df.index < date]
-            if df.empty:
-                return None
-            return df["Close"].iloc[-1]
+        if date in df.index:
+            return df.loc[date]["Close"], date
 
-        return df.loc[date]["Close"]
+        df = df[df.index < date]
+        if df.empty:
+            return None, None
+
+        actual_date = df.index[-1]
+        return df.loc[actual_date]["Close"], actual_date
+
     
     def get_return_between(self, symbol: str, from_date: pd.Timestamp, to_date: pd.Timestamp) -> float:
         """
         Calculates the % return for a symbol between two dates using Close prices.
         """
-        price_start = self.get_price_on_date(symbol, from_date)
-        price_end = self.get_price_on_date(symbol, to_date)
+        price_start, _ = self.get_price_on_date(symbol, from_date)
+        price_end, _ = self.get_price_on_date(symbol, to_date)
 
         if price_start is None or price_end is None or price_start == 0:
             return 0.0
@@ -168,14 +170,19 @@ class UniverseStrategy:
             if rankings.empty:
                 # Calculate total portfolio value even in cash
                 equity_value = 0
+                actual_dates = []
                 for symbol, (qty, _) in current_holdings.items():
-                    price = self.get_price_on_date(symbol, date)
+                    price, actual_date = self.get_price_on_date(symbol, date)
                     if price:
                         equity_value += qty * price
+                        actual_dates.append(actual_date)
+
+                # Use the latest price date among holdings as the rebalance action date
+                rebalance_date_used = max(actual_dates) if actual_dates else date
                 portfolio_value = equity_value + cash
 
                 rebalance_log.append({
-                    "Date": date,
+                    "Date": rebalance_date_used,
                     "Symbol": "CASH",
                     "Action": "HOLD",
                     "Qty": None,
@@ -198,12 +205,12 @@ class UniverseStrategy:
             for symbol in list(current_holdings.keys()):
                 if symbol not in top_symbols:
                     qty, buy_price = current_holdings[symbol]
-                    sell_price = self.get_price_on_date(symbol, date)
+                    sell_price, sell_price_date = self.get_price_on_date(symbol, date)
                     if sell_price:
                         proceeds = qty * sell_price
                         new_cash += proceeds
                         rebalance_log.append({
-                            "Date": date,
+                            "Date": sell_price_date,
                             "Symbol": symbol,
                             "Action": "SELL",
                             "Qty": qty,
@@ -220,7 +227,7 @@ class UniverseStrategy:
                 if symbol in current_holdings:
                     continue
 
-                price = self.get_price_on_date(symbol, date)
+                price, buy_price_date = self.get_price_on_date(symbol, date)
                 if price is None or price == 0:
                     continue
 
@@ -230,7 +237,7 @@ class UniverseStrategy:
                     current_holdings[symbol] = (qty, price)
                     new_cash -= cost
                     rebalance_log.append({
-                        "Date": date,
+                        "Date": buy_price_date,
                         "Symbol": symbol,
                         "Action": "BUY",
                         "Qty": qty,
@@ -246,13 +253,16 @@ class UniverseStrategy:
             next_date = rebalance_dates[i + 1]
 
             equity_value = 0
+            actual_dates = []
             for symbol, (qty, _) in current_holdings.items():
-                price = self.get_price_on_date(symbol, next_date)
+                price, actual_date = self.get_price_on_date(symbol, next_date)
                 if price:
                     equity_value += qty * price
+                    actual_dates.append(actual_date)
 
             portfolio_value = equity_value + cash
-            equity_curve.append((next_date, portfolio_value))
+            rebalance_value_date = max(actual_dates) if actual_dates else next_date
+            equity_curve.append((rebalance_value_date, portfolio_value))
 
             prev_value = equity_curve[-2][1] if len(equity_curve) > 1 else initial_capital
             return_pct = (portfolio_value / prev_value) - 1 if prev_value else 0

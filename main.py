@@ -15,7 +15,7 @@ if __name__ == "__main__":
     strategy = MomentumPriceRsiComposite(config)
     
     # Run backtest
-    strategy.backtest(top_n=15, rebalance_frequency="W")
+    strategy.backtest(top_n=15, rebalance_frequency="W-FRI")
 
     # Run on current date
     # strategy.run(top_n=15)
