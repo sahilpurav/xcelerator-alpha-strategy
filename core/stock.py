@@ -32,7 +32,9 @@ class Stock:
                 last_date = cached_data.index.max()
 
                 # Check if the last date is today
-                if last_date >= pd.Timestamp(datetime.now().date()):
+                today = pd.Timestamp(datetime.now().date())
+                weekday = today.weekday()
+                if last_date >= today or (weekday in [5, 6] and last_date >= today - pd.Timedelta(days=weekday - 4)):
                     return cached_data
                 
                 # Fetch only missing data
