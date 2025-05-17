@@ -14,6 +14,7 @@ class UniverseStrategy:
         self.universe_name = config.get("universe", "nifty500")
         self.start_date = config.get("start_date", "2015-01-01")
         self.force_refresh = config.get("force_refresh", False)
+        self.backtest_results = {}
 
         self.raw_symbols, self.yahoo_symbols = Universe.get_symbols(
             self.universe_name,
@@ -292,34 +293,91 @@ class UniverseStrategy:
         )
 
         portfolio_summary = result.portfolio_summary().iloc[0]
-        print("\n\U0001f4caPortfolio Backtest Summary")
-        print(f"{'CAGR:':20} {portfolio_summary['CAGR']:.2%}")
-        print(f"{'Absolute Return:':20} {portfolio_summary['Absolute Return']:.2%} ({(1 + portfolio_summary['Absolute Return']):.2f}x)")
-        print(f"{'Max Drawdown:':20} {portfolio_summary['Max Drawdown']:.2%}")
-        print(f"{'Volatility:':20} {portfolio_summary['Volatility']:.2%}")
-        print(f"{'Sharpe Ratio:':20} {portfolio_summary['Sharpe Ratio']:.2f}")
-        print(f"{'Sortino Ratio:':20} {portfolio_summary['Sortino Ratio']:.2f}")
-        print(f"{'Alpha:':20} {portfolio_summary['Alpha']:.2%}" if portfolio_summary['Alpha'] is not None else f"{'Alpha:':20} N/A")
-        print(f"{'Avg Churn/Rebalance:':30} {portfolio_summary['Avg Churn/Rebalance']}")
-        print(f"{'Avg Holding Period:':30} {portfolio_summary['Avg Holding Period']} rebalances")
-        print(f"{'Daily Max Drawdown:':30} {portfolio_summary['Daily Max Drawdown']:.2%}")
-        print(f"{'Daily Max Gain:':30} {portfolio_summary['Daily Max Gain']:.2%}")
-        print(f"{'Avg Daily Gain:':30} {portfolio_summary['Avg Daily Gain']:.2%}")
-        print(f"{'Avg Daily Loss:':30} {portfolio_summary['Avg Daily Loss']:.2%}")
-        print(f"{'Win Rate:':30} {portfolio_summary['Win Rate']:.2%}")
-        print(f"{'Loss Rate:':30} {portfolio_summary['Loss Rate']:.2%}")
-        print(f"{'Daily Return Std Dev:':30} {portfolio_summary['Daily Return Std Dev']:.2%}")
-        print(f"{'Max Win Streak:':30} {portfolio_summary['Max Win Streak']} days")
-        print(f"{'Max Loss Streak:':30} {portfolio_summary['Max Loss Streak']} days")
-
+        # Create a structured dictionary with all performance metrics
+        strategy_classname = re.sub(r'(?<!^)(?=[A-Z])', '_', self.__class__.__name__).lower()
+        
+        self.backtest_results = {
+            "strategy_name": strategy_classname,
+            "portfolio": {
+                "cagr": portfolio_summary['CAGR'],
+                "absolute_return": portfolio_summary['Absolute Return'],
+                "absolute_return_multiple": (1 + portfolio_summary['Absolute Return']),
+                "max_drawdown": portfolio_summary['Max Drawdown'],
+                "volatility": portfolio_summary['Volatility'],
+                "sharpe_ratio": portfolio_summary['Sharpe Ratio'],
+                "sortino_ratio": portfolio_summary['Sortino Ratio'],
+                "alpha": portfolio_summary['Alpha'],
+                "avg_churn_per_rebalance": portfolio_summary['Avg Churn/Rebalance'],
+                "avg_holding_period": portfolio_summary['Avg Holding Period'],
+                "daily_max_drawdown": portfolio_summary['Daily Max Drawdown'],
+                "daily_max_gain": portfolio_summary['Daily Max Gain'],
+                "avg_daily_gain": portfolio_summary['Avg Daily Gain'],
+                "avg_daily_loss": portfolio_summary['Avg Daily Loss'],
+                "win_rate": portfolio_summary['Win Rate'],
+                "loss_rate": portfolio_summary['Loss Rate'],
+                "daily_return_std_dev": portfolio_summary['Daily Return Std Dev'],
+                "max_win_streak": portfolio_summary['Max Win Streak'],
+                "max_loss_streak": portfolio_summary['Max Loss Streak']
+            },
+            "benchmark": {}
+        }
+        
+        # Add benchmark data if available
         benchmark_summary = result.benchmark_summary()
         if not benchmark_summary.empty:
             bm = benchmark_summary.iloc[0]
-            print("\n\U0001f4c8Benchmark Backtest Summary")
-            print(f"{'CAGR:':20} {bm['CAGR']:.2%}")
-            print(f"{'Absolute Return:':20} {bm['Absolute Return']}")
-            print(f"{'Max Drawdown:':20} {bm['Max Drawdown']:.2%}")
-            print(f"{'Volatility:':20} {bm['Volatility']:.2%}")
+            self.backtest_results["benchmark"] = {
+                "cagr": bm['CAGR'],
+                "absolute_return": bm['Absolute Return'],
+                "max_drawdown": bm['Max Drawdown'],
+                "volatility": bm['Volatility']
+            }
 
-        strategy_classname = re.sub(r'(?<!^)(?=[A-Z])', '_', self.__class__.__name__).lower()
+        # Save results to CSV
         result.to_csv(f"reports/{strategy_classname}/")
+        
+        return self
+    
+    def summary(self):
+        def fmt_pct(val):
+            return f"{val:.2%}" if isinstance(val, (int, float)) else str(val)
+    
+        def fmt_float(val):
+            return f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
+
+        # Access the results dictionary directly (single strategy case)
+        portfolio_summary = self.backtest_results.get('portfolio', {})
+        benchmark_summary = self.backtest_results.get('benchmark', {})
+        pretty_name = " ".join(word.capitalize() for word in self.backtest_results.get('strategy_name', '').split("_")) + " Strategy"
+        print(f"\n\U0001f4caPortfolio Backtest Summary ({pretty_name})")
+
+        print(f"{'CAGR:':20} {fmt_pct(portfolio_summary.get('cagr', 'N/A'))}")
+        print(f"{'Absolute Return:':20} {fmt_pct(portfolio_summary.get('absolute_return', 'N/A'))} ({fmt_float(portfolio_summary.get('absolute_return_multiple', 'N/A'))}x)")
+        print(f"{'Max Drawdown:':20} {fmt_pct(portfolio_summary.get('max_drawdown', 'N/A'))}")
+        print(f"{'Volatility:':20} {fmt_pct(portfolio_summary.get('volatility', 'N/A'))}")
+        print(f"{'Sharpe Ratio:':20} {fmt_float(portfolio_summary.get('sharpe_ratio', 'N/A'))}")
+        print(f"{'Sortino Ratio:':20} {fmt_float(portfolio_summary.get('sortino_ratio', 'N/A'))}")
+        alpha = portfolio_summary.get('alpha', 'N/A')
+        if isinstance(alpha, (int, float)):
+            print(f"{'Alpha:':20} {fmt_pct(alpha)}")
+        else:
+            print(f"{'Alpha:':20} {alpha}")
+        print(f"{'Avg Churn/Rebalance:':30} {portfolio_summary.get('avg_churn_per_rebalance', 'N/A')}")
+        print(f"{'Avg Holding Period:':30} {portfolio_summary.get('avg_holding_period', 'N/A')} rebalances")
+        print(f"{'Daily Max Drawdown:':30} {fmt_pct(portfolio_summary.get('daily_max_drawdown', 'N/A'))}")
+        print(f"{'Daily Max Gain:':30} {fmt_pct(portfolio_summary.get('daily_max_gain', 'N/A'))}")
+        print(f"{'Avg Daily Gain:':30} {fmt_pct(portfolio_summary.get('avg_daily_gain', 'N/A'))}")
+        print(f"{'Avg Daily Loss:':30} {fmt_pct(portfolio_summary.get('avg_daily_loss', 'N/A'))}")
+        print(f"{'Win Rate:':30} {fmt_pct(portfolio_summary.get('win_rate', 'N/A'))}")
+        print(f"{'Loss Rate:':30} {fmt_pct(portfolio_summary.get('loss_rate', 'N/A'))}")
+        print(f"{'Daily Return Std Dev:':30} {fmt_pct(portfolio_summary.get('daily_return_std_dev', 'N/A'))}")
+        print(f"{'Max Win Streak:':30} {portfolio_summary.get('max_win_streak', 'N/A')} days")
+        print(f"{'Max Loss Streak:':30} {portfolio_summary.get('max_loss_streak', 'N/A')} days")
+
+        # Print benchmark summary only once at the end
+        if benchmark_summary:
+            print(f"\n\U0001f4c8Benchmark Backtest Summary")
+            print(f"{'CAGR:':20} {fmt_pct(benchmark_summary.get('cagr', 'N/A'))}")
+            print(f"{'Absolute Return:':20} {fmt_pct(benchmark_summary.get('absolute_return', 'N/A'))}")
+            print(f"{'Max Drawdown:':20} {fmt_pct(benchmark_summary.get('max_drawdown', 'N/A'))}")
+            print(f"{'Volatility:':20} {fmt_pct(benchmark_summary.get('volatility', 'N/A'))}")

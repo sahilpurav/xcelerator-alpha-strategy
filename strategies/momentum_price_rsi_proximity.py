@@ -1,14 +1,13 @@
-from core.reporting.backtest_result import BacktestResult
 import pandas as pd
-import numpy as np
 from core.strategies.template.universe import UniverseStrategy
 from utils.indicators import Indicator
 
-class MomentumPriceRsiComposite(UniverseStrategy):
+class MomentumPriceRsiProximityStrategy(UniverseStrategy):
+
     def rank_stocks(self, as_of_date: pd.Timestamp) -> pd.DataFrame:
         
         if not self.is_market_strong(as_of_date):
-            return pd.DataFrame(columns=["Symbol", "ReturnScore", "RSIScore", "ReturnRank", "RSIRank", "TotalRank"])
+            return pd.DataFrame(columns=["Symbol", "ReturnScore", "RSIScore", "HighProxScore", "ReturnRank", "RSIRank", "ProxRank", "TotalRank"])
 
         data = []
 
@@ -20,8 +19,8 @@ class MomentumPriceRsiComposite(UniverseStrategy):
             if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
                 continue
 
-            # Skip stocks with less than 66 days of data
-            if len(df_subset) < 66:
+            # Skip stocks with less than 252 days of data
+            if len(df_subset) < 252:
                 continue
 
             # Skip stocks with price greater than 10000
@@ -38,14 +37,16 @@ class MomentumPriceRsiComposite(UniverseStrategy):
 
             rtn_score = sum(multi_timeframe_returns) / len(multi_timeframe_returns)
             rsi_score = sum(multi_timeframe_rsi) / len(multi_timeframe_rsi)
+            prox_score = ind.high_proximity()
 
-            if None in [rtn_score, rsi_score]:
+            if None in [rtn_score, rsi_score, prox_score]:
                 continue
 
             data.append({
                 "Symbol": symbol,
                 "ReturnScore": rtn_score,
                 "RSIScore": rsi_score,
+                "HighProxScore": prox_score
             })
 
         df = pd.DataFrame(data)
@@ -55,6 +56,7 @@ class MomentumPriceRsiComposite(UniverseStrategy):
 
         df["ReturnRank"] = df["ReturnScore"].rank(ascending=False)
         df["RSIRank"] = df["RSIScore"].rank(ascending=False)
-        df["TotalRank"] = df[["ReturnRank", "RSIScore"]].mean(axis=1)
+        df["ProxRank"] = df["HighProxScore"].rank(ascending=False)
+        df["TotalRank"] = df[["ReturnRank", "RSIRank", "ProxRank"]].mean(axis=1)
 
         return df.sort_values("TotalRank")

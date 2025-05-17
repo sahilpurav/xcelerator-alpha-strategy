@@ -1,11 +1,12 @@
-from core.reporting.backtest_result import BacktestResult
 import pandas as pd
-import numpy as np
 from core.strategies.template.universe import UniverseStrategy
 from utils.indicators import Indicator
 
-class MomentumPurePrice(UniverseStrategy):
+class MomentumPurePriceStrategy(UniverseStrategy):
     def rank_stocks(self, as_of_date: pd.Timestamp) -> pd.DataFrame:
+        if not self.is_market_strong(as_of_date):
+            return pd.DataFrame(columns=["Symbol", "ReturnScore", "ReturnRank", "TotalRank"])
+
         data = []
 
         for symbol, df in self.price_data.items():
@@ -14,6 +15,10 @@ class MomentumPurePrice(UniverseStrategy):
 
             # Skip stocks with price less than 100
             if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
+                continue
+
+            # Skip stocks with less than 66 days of data
+            if len(df_subset) < 66:
                 continue
 
             # Skip stocks with price greater than 10000
@@ -42,6 +47,7 @@ class MomentumPurePrice(UniverseStrategy):
         if df.empty:
             return df
 
-        df["TotalRank"] = df["ReturnScore"].rank(ascending=False)
+        df["ReturnRank"] = df["ReturnScore"].rank(ascending=False)
+        df["TotalRank"] = df[["ReturnRank"]].mean(axis=1)
 
         return df.sort_values("TotalRank")
