@@ -65,13 +65,14 @@ class UniverseStrategy:
         df = self.price_data.get(symbol)
         if df is None:
             return True  # Assume strong if not available
-
+        
+        days_ago = 200
         df_subset = df[df.index <= as_of_date]
-        if df_subset.shape[0] < 100:
+        if df_subset.shape[0] < days_ago:
             return True  # Not enough data
 
         ind = Indicator(df_subset)
-        dma = ind.dma(100)
+        dma = ind.dma(days_ago)
         latest_close = df_subset["Close"].iloc[-1]
 
         if dma is None:
