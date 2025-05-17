@@ -161,6 +161,7 @@ class UniverseStrategy:
 
         held_stocks = []
         held_details = []
+        removed_details = []
 
         if band_threshold > 0:
             for symbol in prev_holdings:
@@ -169,6 +170,10 @@ class UniverseStrategy:
                     if rank <= top_n + band_threshold:
                         held_stocks.append(symbol)
                         held_details.append((symbol, rank))
+                    else:
+                        removed_details.append((symbol, rank))
+                else:
+                    removed_details.append((symbol, "N/A"))  # Not ranked at all today
 
         slots_remaining = top_n - len(held_stocks)
         new_candidates = rankings[~rankings["CleanSymbol"].isin(held_stocks)]
@@ -189,6 +194,11 @@ class UniverseStrategy:
             print("\n🆕 New Entries:")
             for _, row in new_rows.iterrows():
                 print(f"  - {row['CleanSymbol']}: Rank #{int(row['Rank'])}")
+
+        if removed_details:
+            print("\n❌ Removed Stocks (outside band):")
+            for symbol, rank in removed_details:
+                print(f"  - {symbol}: Rank #{rank}")
 
         return final_portfolio
 
