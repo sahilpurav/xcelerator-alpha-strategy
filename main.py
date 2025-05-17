@@ -17,33 +17,6 @@ if __name__ == "__main__":
         "load_benchmark": True,
     }
 
-    # Store results in a dictionary for easier access
-    results = {}
-
-    # # Run the Momentum Price Proximity strategy
-    # momentumPriceProximityStrategy = MomentumPriceProximityStrategy(config)
-    # results["momentum_price_proximity"] = momentumPriceProximityStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-    
-    # # Run the Momentum Price RSI strategy
-    # momentumPriceRsiStrategy = MomentumPriceRsiStrategy(config)
-    # results["momentum_price_rsi"] = momentumPriceRsiStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-
-    # # Run the Momentum Pure Price strategy
-    # momentumPurePriceStrategy = MomentumPurePriceStrategy(config)
-    # results["momentum_pure_price"] = momentumPurePriceStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-
-    # # Run the Momentum Pure Proximity strategy
-    # momentumPureProximityStrategy = MomentumPureProximityStrategy(config)
-    # results["momentum_pure_proximity"] = momentumPureProximityStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-
-    # # Run the Momentum Pure RSI strategy
-    # momentumPureRsiStrategy = MomentumPureRsiStrategy(config)
-    # results["momentum_pure_rsi"] = momentumPureRsiStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-
-    # # Run the Momentum RSI Proximity strategy
-    # momentumRsiProximityStrategy = MomentumRsiProximityStrategy(config)
-    # results["momentum_rsi_proximity"] = momentumRsiProximityStrategy.backtest(top_n=15, rebalance_frequency="W-THU")
-
     #  Selecting the best strategy
     momentumPriceRsiProximityStrategy = MomentumPriceRsiProximityStrategy(config)
 
