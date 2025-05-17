@@ -67,17 +67,17 @@ class UniverseStrategy:
             return True  # Assume strong if not available
 
         df_subset = df[df.index <= as_of_date]
-        if df_subset.shape[0] < 200:
+        if df_subset.shape[0] < 100:
             return True  # Not enough data
 
         ind = Indicator(df_subset)
-        dma_200 = ind.dma(200)
+        dma = ind.dma(100)
         latest_close = df_subset["Close"].iloc[-1]
 
-        if dma_200 is None:
+        if dma is None:
             return True
 
-        return latest_close > dma_200
+        return latest_close > dma
     
     def get_rebalance_dates(self, freq: str = "W") -> list[pd.Timestamp]:
         """
@@ -301,6 +301,15 @@ class UniverseStrategy:
         print(f"{'Alpha:':20} {portfolio_summary['Alpha']:.2%}" if portfolio_summary['Alpha'] is not None else f"{'Alpha:':20} N/A")
         print(f"{'Avg Churn/Rebalance:':30} {portfolio_summary['Avg Churn/Rebalance']}")
         print(f"{'Avg Holding Period:':30} {portfolio_summary['Avg Holding Period']} rebalances")
+        print(f"{'Daily Max Drawdown:':30} {portfolio_summary['Daily Max Drawdown']:.2%}")
+        print(f"{'Daily Max Gain:':30} {portfolio_summary['Daily Max Gain']:.2%}")
+        print(f"{'Avg Daily Gain:':30} {portfolio_summary['Avg Daily Gain']:.2%}")
+        print(f"{'Avg Daily Loss:':30} {portfolio_summary['Avg Daily Loss']:.2%}")
+        print(f"{'Win Rate:':30} {portfolio_summary['Win Rate']:.2%}")
+        print(f"{'Loss Rate:':30} {portfolio_summary['Loss Rate']:.2%}")
+        print(f"{'Daily Return Std Dev:':30} {portfolio_summary['Daily Return Std Dev']:.2%}")
+        print(f"{'Max Win Streak:':30} {portfolio_summary['Max Win Streak']} days")
+        print(f"{'Max Loss Streak:':30} {portfolio_summary['Max Loss Streak']} days")
 
         benchmark_summary = result.benchmark_summary()
         if not benchmark_summary.empty:
