@@ -64,10 +64,17 @@ class BacktestResult:
         grouped = self.rebalance_log.groupby("Date")["Symbol"].apply(set)
         dates = grouped.index.tolist()
 
-        churn_counts = [
-            len(grouped.iloc[i - 1] - grouped.iloc[i])
-            for i in range(1, len(dates))
-        ]
+        churn_counts = []
+        for i in range(1, len(dates)):
+            prev = grouped.iloc[i - 1]
+            curr = grouped.iloc[i]
+
+            # Skip churn calc if either previous or current holding is empty or cash-only
+            if "CASH" in prev or "CASH" in curr or len(prev) == 0 or len(curr) == 0:
+                continue
+
+            churn = len(prev - curr)
+            churn_counts.append(churn)
 
         return round(sum(churn_counts) / len(churn_counts), 2) if churn_counts else 0.0
     

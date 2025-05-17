@@ -136,19 +136,65 @@ class UniverseStrategy:
         rebased = (df["Close"] / df["Close"].iloc[0]) * self.config.get("initial_capital", 1_000_000)
         return rebased
 
-    def run(self, top_n: int = 20):
+    def run(self, top_n: int = 15, band_threshold: int = 5, prev_holdings: list[str] = []):
         """
-        Get top N ranked stocks as of the most recent available date.
+        Get final portfolio for live rebalance using banding logic, and print original ranks.
+
+        Args:
+            top_n (int): Number of stocks to hold
+            band_threshold (int): Ranking flexibility band
+            prev_holdings (list): List of symbols from previous rebalance (e.g., ['TATAPOWER', 'HAL', ...])
+
+        Returns:
+            list[str]: Final list of stock symbols (without .NS)
         """
         latest_date = max(df.index.max() for df in self.price_data.values())
         rankings = self.rank_stocks(as_of_date=latest_date)
-        top = rankings.head(top_n).copy()  # Create an explicit copy
-        top['Symbol'] = top['Symbol'].str.replace('.NS', '', regex=False)  # Remove '.NS' suffix
-        for symbol in top['Symbol'].tolist():
-            print(symbol)
+
+        if rankings.empty:
+            print("⚠️ No valid ranking for today. Likely due to weak market filter.")
+            return []
+
+        rankings = rankings.reset_index(drop=True)
+        rankings["Rank"] = rankings.index + 1
+        rankings["CleanSymbol"] = rankings["Symbol"].str.replace(".NS", "", regex=False)
+
+        held_stocks = []
+        held_details = []
+
+        if band_threshold > 0:
+            for symbol in prev_holdings:
+                if symbol in rankings["CleanSymbol"].values:
+                    rank = rankings.loc[rankings["CleanSymbol"] == symbol, "Rank"].values[0]
+                    if rank <= top_n + band_threshold:
+                        held_stocks.append(symbol)
+                        held_details.append((symbol, rank))
+
+        slots_remaining = top_n - len(held_stocks)
+        new_candidates = rankings[~rankings["CleanSymbol"].isin(held_stocks)]
+        new_rows = new_candidates.head(slots_remaining)[["CleanSymbol", "Rank"]]
+        new_symbols = new_rows["CleanSymbol"].tolist()
+
+        final_portfolio = held_stocks + new_symbols
+
+        print(f"\n📅 Live Rebalance Date: {latest_date.date()}")
+        print(f"✅ Final Portfolio (Band = {band_threshold})\n")
+
+        if held_details:
+            print("🟢 Held Stocks (within band):")
+            for symbol, rank in held_details:
+                print(f"  - {symbol}: Rank #{rank}")
+
+        if not new_rows.empty:
+            print("\n🆕 New Entries:")
+            for _, row in new_rows.iterrows():
+                print(f"  - {row['CleanSymbol']}: Rank #{int(row['Rank'])}")
+
+        return final_portfolio
+
 
     
-    def backtest(self, top_n: int = 20, rebalance_frequency: str = "W"):
+    def backtest(self, top_n: int = 20, rebalance_frequency: str = "W", band_threshold: int = 0):
         """
         Backtest the strategy using the specified parameters.
         """
@@ -199,7 +245,28 @@ class UniverseStrategy:
                 cash = portfolio_value  # carry forward real portfolio value as cash
                 continue
 
-            top_symbols = rankings.head(top_n)["Symbol"].tolist()
+            held_stocks = []
+            if band_threshold > 0:
+                max_rank = top_n + band_threshold
+                rankings = rankings.reset_index(drop=True)
+                rankings["Rank"] = rankings.index + 1
+
+                # Step 1: Keep currently held stocks if they are within the band
+                for symbol in list(current_holdings.keys()):
+                    if symbol in rankings["Symbol"].values:
+                        current_rank = rankings.loc[rankings["Symbol"] == symbol, "Rank"].values[0]
+                        if current_rank <= max_rank:
+                            held_stocks.append(symbol)
+
+                # Step 2: Fill remaining slots with top ranked symbols not already held
+                slots_left = top_n - len(held_stocks)
+                new_symbols = rankings[~rankings["Symbol"].isin(held_stocks)] \
+                                    .sort_values("TotalRank") \
+                                    .head(slots_left)["Symbol"].tolist()
+
+                top_symbols = held_stocks + new_symbols
+            else:
+                top_symbols = rankings.head(top_n)["Symbol"].tolist()
             print("Top picks:", top_symbols)
 
             # Sell stocks that are no longer in top N

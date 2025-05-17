@@ -15,16 +15,13 @@ class MomentumPriceRsiProximityStrategy(UniverseStrategy):
             # Only use data up to this date
             df_subset = df[df.index <= as_of_date]
 
-            # Skip stocks with price less than 100
-            if df_subset.empty or df_subset['Close'].iloc[-1] < 100:
-                continue
-
             # Skip stocks with less than 252 days of data
             if len(df_subset) < 252:
                 continue
 
-            # Skip stocks with price greater than 10000
-            if df_subset.empty or df_subset['Close'].iloc[-1] > 10000:
+            # Skip penny stocks and stocks with very high prices
+            latest_close = df_subset['Close'].iloc[-1]
+            if latest_close < 100 or latest_close > 10000:
                 continue
 
             ind = Indicator(df_subset)
@@ -62,6 +59,12 @@ class MomentumPriceRsiProximityStrategy(UniverseStrategy):
         df["ReturnRank"] = df["ReturnScore"].rank(ascending=False)
         df["RSIRank"] = df["RSIScore"].rank(ascending=False)
         df["ProxRank"] = df["HighProxScore"].rank(ascending=False)
-        df["TotalRank"] = df[["ReturnRank", "RSIRank", "ProxRank"]].mean(axis=1)
+
+        # Weighted total rank
+        df["TotalRank"] = (
+            0.8 * df["ReturnRank"] +
+            0.1 * df["RSIRank"] +
+            0.1 * df["ProxRank"]
+        )
 
         return df.sort_values("TotalRank")

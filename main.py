@@ -47,6 +47,10 @@ if __name__ == "__main__":
     #  Selecting the best strategy
     momentumPriceRsiProximityStrategy = MomentumPriceRsiProximityStrategy(config)
 
-    # # Running for current week
-    # momentumPriceRsiProximityStrategy.run(15)
-    momentumPriceRsiProximityStrategy.backtest(top_n=15, rebalance_frequency="W-WED").summary()
+    # Running for current week
+    # momentumPriceRsiProximityStrategy.run(15, band_threshold=5, prev_holdings=[
+    #     "ADANIPORTS", "BDL", "BSE", "CEATLTD", "COROMANDEL", "ELECON", "GRSE", "INTELLECT", "JYOTICNC", "KAYNES", "MAZDOCK", "MOTILALOFS", "POONAWALLA", "RBLBANK", "REDINGTON"
+    # ])
+
+    # Run Backtest
+    momentumPriceRsiProximityStrategy.backtest(top_n=15, rebalance_frequency="W-WED", band_threshold=5).summary()
