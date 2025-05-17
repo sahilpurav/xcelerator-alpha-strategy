@@ -85,3 +85,22 @@ class Indicator:
         highest = self.df["Close"].iloc[-lookback:].max()
 
         return (current / highest) * 100
+    
+    def avg_traded_value(self, period: int = 22) -> float:
+        """
+        Calculates the average traded value (volume × close) over the given period.
+
+        Args:
+            period (int): Lookback period in trading days.
+
+        Returns:
+            float: Average traded value in ₹ or None if insufficient data.
+        """
+        if self.df.shape[0] < period:
+            return None
+
+        avg_volume = self.df["Volume"].iloc[-period:].mean()
+        avg_close = self.df["Close"].iloc[-period:].mean()
+
+        return avg_volume * avg_close
+
