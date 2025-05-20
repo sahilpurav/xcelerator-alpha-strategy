@@ -103,4 +103,26 @@ class Indicator:
         avg_close = self.df["Close"].iloc[-period:].mean()
 
         return avg_volume * avg_close
-
+    
+    def avg_volume(self, window=22):
+        """
+        Calculates the average volume over the given window.
+        """
+        try:
+            if self.df.shape[0] < window:
+                return None
+            return self.df["Volume"].tail(window).mean()
+        except Exception:
+            return None
+        
+    def median_traded_value(self, window=22):
+        """
+        Calculates the median traded value (volume × close) over the given window.
+        """
+        try:
+            if self.df.shape[0] < window:
+                return None
+            traded_value = self.df["Close"] * self.df["Volume"]
+            return traded_value.tail(window).median()
+        except Exception:
+            return None

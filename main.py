@@ -1,10 +1,4 @@
-from strategies.momentum_price_rsi import MomentumPriceRsiStrategy
 from strategies.momentum_price_rsi_proximity import MomentumPriceRsiProximityStrategy
-from strategies.momentum_price_proximity import MomentumPriceProximityStrategy
-from strategies.momentum_rsi_proximity import MomentumRsiProximityStrategy
-from strategies.momentum_pure_proximity import MomentumPureProximityStrategy
-from strategies.momentum_pure_price import MomentumPurePriceStrategy
-from strategies.momentum_pure_rsi import MomentumPureRsiStrategy
 
 if __name__ == "__main__":
     config = {

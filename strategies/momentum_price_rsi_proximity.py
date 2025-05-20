@@ -26,9 +26,13 @@ class MomentumPriceRsiProximityStrategy(UniverseStrategy):
 
             ind = Indicator(df_subset)
 
-            # Skip stocks with average traded value less than ₹1 Cr
-            traded_value = ind.avg_traded_value(22)
+            # Skip stocks with medium traded value less than ₹1 Cr
+            traded_value = ind.median_traded_value(22)
             if traded_value is None or traded_value < 1_00_00_000:  # ₹1 Cr
+                continue
+
+            # Skip stocks with low average volume
+            if ind.avg_volume(22) < 10_000:
                 continue
 
             multi_timeframe_returns = [ind.rtn(22), ind.rtn(44), ind.rtn(66)]

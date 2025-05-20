@@ -26,17 +26,36 @@ class Universe:
                     f"Please download it manually from:\n"
                     f"https://www.nseindia.com/api/reportASM?json=true\n"
                     f"and save it to: {filepath}"
-                )   
+                )
+
             with open(filepath, "r") as f:
                 data = json.load(f)
 
-            long_term = [entry["symbol"].strip() + ".NS" for entry in data.get("longterm", {}).get("data", [])]
-            short_term = [entry["symbol"].strip() + ".NS" for entry in data.get("shortterm", {}).get("data", [])]
+            def add_ns(symbol):
+                return symbol.strip() + ".NS"
 
-            return set(long_term + short_term)  # or return both separately if needed
+            # Exclude all long-term ASM stocks
+            long_term_symbols = {
+                add_ns(entry["symbol"])
+                for entry in data.get("longterm", {}).get("data", [])
+            }
+
+            # Exclude only Stage II from short-term ASM
+            short_term_stage_2 = {
+                add_ns(entry["symbol"])
+                for entry in data.get("shortterm", {}).get("data", [])
+                if entry.get("asmSurvIndicator", "").strip() == "Stage II"
+            }
+
+            # Final exclusion list
+            excluded_symbols = long_term_symbols.union(short_term_stage_2)
+
+            return excluded_symbols
+
         except Exception as e:
             print(f"[ASM Load Error] {e}")
             exit(0)
+
 
 
     @classmethod
@@ -83,6 +102,7 @@ class Universe:
 
         # Combine both sets for exclusion
         excluded_symbols = invalid | asm
+        # excluded_symbols = invalid
 
         # Filter them out
         raw_symbols = [s for s in raw_symbols if f"{s}.NS" not in excluded_symbols]
