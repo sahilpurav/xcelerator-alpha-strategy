@@ -6,6 +6,7 @@ from core.reporting.backtest_result import BacktestResult
 from core.reporting.equity_curve import EquityCurveSimulator
 import re
 from utils.indicators import Indicator
+import math
 
 class UniverseStrategy:
     def __init__(self, config: Dict):
@@ -135,18 +136,19 @@ class UniverseStrategy:
         rebased = (df["Close"] / df["Close"].iloc[0]) * self.config.get("initial_capital", 1_000_000)
         return rebased
 
-    def run(self, top_n: int = 15, band_threshold: int = 5, prev_holdings: list[str] = []):
+    def run(self, top_n: int = 15, band_threshold: int = 5, previous_holdings: list[dict] = []):
         """
-        Get final portfolio for live rebalance using banding logic, and print original ranks.
+        Rebalance using banding logic. Preserve existing holdings, reinvest only proceeds from removed stocks.
 
         Args:
             top_n (int): Number of stocks to hold
             band_threshold (int): Ranking flexibility band
-            prev_holdings (list): List of symbols from previous rebalance (e.g., ['TATAPOWER', 'HAL', ...])
+            previous_holdings (list): List of dicts: [{"symbol": "XYZ", "quantity": 100, "buy_price": 150.0}, ...]
 
         Returns:
-            list[str]: Final list of stock symbols (without .NS)
+            list[str]: Final portfolio symbols
         """
+        prev_symbols = [d["symbol"] for d in previous_holdings]
         latest_date = max(df.index.max() for df in self.price_data.values())
         rankings = self.rank_stocks(as_of_date=latest_date)
 
@@ -163,21 +165,22 @@ class UniverseStrategy:
         removed_details = []
 
         if band_threshold > 0:
-            for symbol in prev_holdings:
+            for symbol in prev_symbols:
                 if symbol in rankings["CleanSymbol"].values:
                     rank = rankings.loc[rankings["CleanSymbol"] == symbol, "Rank"].values[0]
                     if rank <= top_n + band_threshold:
                         held_stocks.append(symbol)
-                        held_details.append((symbol, rank))
+                        held_details.append({"Symbol": symbol, "Rank": rank})
                     else:
-                        removed_details.append((symbol, rank))
+                        removed_details.append({"Symbol": symbol, "Rank": rank})
                 else:
-                    removed_details.append((symbol, "N/A"))  # Not ranked at all today
+                    removed_details.append({"Symbol": symbol, "Rank": "N/A"})
 
         slots_remaining = top_n - len(held_stocks)
         new_candidates = rankings[~rankings["CleanSymbol"].isin(held_stocks)]
         new_rows = new_candidates.head(slots_remaining)[["CleanSymbol", "Rank"]]
         new_symbols = new_rows["CleanSymbol"].tolist()
+        new_details = new_rows.rename(columns={"CleanSymbol": "Symbol"}).to_dict(orient="records")
 
         final_portfolio = held_stocks + new_symbols
 
@@ -185,19 +188,95 @@ class UniverseStrategy:
         print(f"✅ Final Portfolio (Band = {band_threshold})\n")
 
         if held_details:
-            print("🟢 Held Stocks (within band):")
-            for symbol, rank in held_details:
-                print(f"  - {symbol}: Rank #{rank}")
+            df_held = pd.DataFrame(held_details).sort_values("Rank")
+            print("🟢 Held Stocks (within band)")
+            print(df_held.to_string(index=False))
 
-        if not new_rows.empty:
-            print("\n🆕 New Entries:")
-            for _, row in new_rows.iterrows():
-                print(f"  - {row['CleanSymbol']}: Rank #{int(row['Rank'])}")
+        if new_details:
+            df_new = pd.DataFrame(new_details).sort_values("Rank")
+            print("\n🆕 New Entries")
+            print(df_new.to_string(index=False))
 
         if removed_details:
-            print("\n❌ Removed Stocks (outside band):")
-            for symbol, rank in removed_details:
-                print(f"  - {symbol}: Rank #{rank}")
+            df_removed = pd.DataFrame(removed_details)
+            df_removed["Rank"] = pd.to_numeric(df_removed["Rank"], errors="coerce")
+            df_removed = df_removed.sort_values("Rank", na_position="last")
+            df_removed["Rank"] = df_removed["Rank"].fillna("N/A")
+            print("\n❌ Removed Stocks (outside band)")
+            print(df_removed.to_string(index=False))
+
+        # --- Execution Plan ---
+
+        # Get latest close prices
+        latest_close = {
+            symbol.replace(".NS", ""): df.loc[latest_date, "Close"]
+            for symbol, df in self.price_data.items()
+            if latest_date in df.index
+        }
+
+        # Convert to DataFrame
+        prev_df = pd.DataFrame(previous_holdings)
+        prev_df["current_price"] = prev_df["symbol"].map(latest_close)
+        prev_df["effective_price"] = prev_df.apply(
+            lambda row: row["buy_price"] if pd.notna(row.get("buy_price")) and row["buy_price"] > 0 else row["current_price"],
+            axis=1
+        )
+        prev_df["current_value"] = prev_df["quantity"] * prev_df["effective_price"]
+
+        # Split into held and removed
+        df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
+        df_removed = prev_df[prev_df["symbol"].isin([d["Symbol"] for d in removed_details])].copy()
+
+        # Total capital freed from sells
+        freed_capital = df_removed["current_value"].sum()
+
+        # Total portfolio value = held + freed capital
+        total_portfolio_value = df_held["current_value"].sum() + freed_capital
+
+        # Allocate equally to new entries
+        per_stock_alloc = freed_capital / len(new_symbols) if new_symbols else 0
+
+        # Create rank lookups
+        held_rank_map = {d["Symbol"]: d["Rank"] for d in held_details}
+        new_rank_map = {d["Symbol"]: d["Rank"] for d in new_details}
+
+        execution_data = []
+
+        # --- Add held stocks with original quantity ---
+        for _, row in df_held.iterrows():
+            symbol = row["symbol"]
+            invested = round(row["quantity"] * row["current_price"], 2)
+            execution_data.append({
+                "Symbol": row["symbol"],
+                "Rank": held_rank_map.get(symbol, "N/A"),
+                "Price": round(row["current_price"], 2),
+                "Quantity": int(row["quantity"]),
+                "Invested": invested,
+                "Weight %": round((invested / total_portfolio_value) * 100, 2),
+                "Action": "HOLD"
+            })
+
+        # --- Add new stocks with equal weight from freed capital ---
+        for symbol in new_symbols:
+            price = latest_close.get(symbol)
+            if not price or price == 0:
+                continue
+            qty = math.floor(per_stock_alloc / price)
+            invested = round(qty * price, 2)
+            execution_data.append({
+                "Symbol": symbol,
+                "Rank": new_rank_map.get(symbol, "N/A"),
+                "Price": round(price, 2),
+                "Quantity": qty,
+                "Invested": invested,
+                "Weight %": round((invested / total_portfolio_value) * 100, 2),
+                "Action": "BUY"
+            })
+
+        df_exec = pd.DataFrame(execution_data).sort_values("Action")
+
+        print("\n📦 Final Execution Plan")
+        print(df_exec.to_string(index=False))
 
         return final_portfolio
 
