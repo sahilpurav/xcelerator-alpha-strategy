@@ -5,7 +5,6 @@ import pandas as pd
 from core.reporting.backtest_result import BacktestResult
 from core.reporting.equity_curve import EquityCurveSimulator
 import re
-import time
 from utils.indicators import Indicator
 
 class UniverseStrategy:
