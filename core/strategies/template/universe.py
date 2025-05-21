@@ -7,6 +7,7 @@ from core.reporting.equity_curve import EquityCurveSimulator
 import re
 from utils.indicators import Indicator
 import math
+import datetime
 
 class UniverseStrategy:
     def __init__(self, config: Dict):
@@ -149,7 +150,7 @@ class UniverseStrategy:
             list[str]: Final portfolio symbols
         """
         prev_symbols = [d["symbol"] for d in previous_holdings]
-        latest_date = max(df.index.max() for df in self.price_data.values())
+        latest_date = pd.Timestamp(datetime.datetime.now().date())
         rankings = self.rank_stocks(as_of_date=latest_date)
 
         if rankings.empty:
@@ -273,7 +274,7 @@ class UniverseStrategy:
                 "Action": "BUY"
             })
 
-        df_exec = pd.DataFrame(execution_data).sort_values("Action")
+        df_exec = pd.DataFrame(execution_data).sort_values("Rank")
 
         print("\n📦 Final Execution Plan")
         print(df_exec.to_string(index=False))

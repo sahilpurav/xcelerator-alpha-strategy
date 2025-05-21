@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     # Running for current week
     previous_holdings = [
-        { "symbol": "ADANIPORTS", "quantity": 83, "price": 1384.00 },
+        { "symbol": "CCL", "quantity": 142 },
         { "symbol": "BDL", "quantity": 71 },
         { "symbol": "BSE", "quantity": 15 },
         { "symbol": "CEATLTD", "quantity": 30 },
@@ -24,12 +24,12 @@ if __name__ == "__main__":
         { "symbol": "ELECON", "quantity": 174 },
         { "symbol": "GRSE", "quantity": 61 },
         { "symbol": "INTELLECT", "quantity": 125 },
-        { "symbol": "JYOTICNC", "quantity": 94, "price": 1194.00 },
-        { "symbol": "KAYNES", "quantity": 18, "price": 5895.50 },
+        { "symbol": "BEL", "quantity": 298 },
+        { "symbol": "DATAPATTNS", "quantity": 41 },
         { "symbol": "MAZDOCK", "quantity": 38 },
-        { "symbol": "MOTILALOFS", "quantity": 154, "price": 775.55 },
-        { "symbol": "POONAWALLA", "quantity": 294, "price": 394.35 },
-        { "symbol": "RBLBANK", "quantity": 530, "price": 210.10 },
+        { "symbol": "HAL", "quantity": 22 },
+        { "symbol": "NAM-INDIA", "quantity": 152 },
+        { "symbol": "AIIL", "quantity": 51 },
         { "symbol": "REDINGTON", "quantity": 409 },
     ]
     momentumPriceRsiProximityStrategy.run(15, band_threshold=5, previous_holdings=previous_holdings)
