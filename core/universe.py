@@ -6,6 +6,7 @@ from typing import List, Tuple
 from core.stock import Stock
 import json
 from utils.file import File
+from core.filters.asm import fetch_asm_from_api_page
 
 class Universe:
     CACHE_DIR = "cache/universe"
@@ -21,12 +22,7 @@ class Universe:
     def _get_asm_symbols(filepath="cache/asm.json"):
         try: 
             if File.is_older_than(filepath, 1):
-                raise Exception(
-                    f"\n ⚠️  ASM file is missing or outdated.\n"
-                    f"Please download it manually from:\n"
-                    f"https://www.nseindia.com/api/reportASM?json=true\n"
-                    f"and save it to: {filepath}"
-                )
+                fetch_asm_from_api_page()
 
             with open(filepath, "r") as f:
                 data = json.load(f)
