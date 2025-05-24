@@ -7,7 +7,7 @@ from core.reporting.equity_curve import EquityCurveSimulator
 import re
 from utils.indicators import Indicator
 import math
-import datetime
+from datetime import datetime, timedelta
 
 class UniverseStrategy:
     def __init__(self, config: Dict):
@@ -150,7 +150,7 @@ class UniverseStrategy:
             list[str]: Final portfolio symbols
         """
         prev_symbols = [d["symbol"] for d in previous_holdings]
-        latest_date = pd.Timestamp(datetime.datetime.now().date())
+        latest_date = pd.Timestamp((datetime.now() - timedelta(days=(2 if datetime.now().weekday() == 6 else 1 if datetime.now().weekday() == 5 else 0))).date())
         rankings = self.rank_stocks(as_of_date=latest_date)
 
         if rankings.empty:
@@ -217,6 +217,57 @@ class UniverseStrategy:
 
         # Convert to DataFrame
         prev_df = pd.DataFrame(previous_holdings)
+        
+        # --- Fresh Entry Mode: If no holdings, invest equally in top N ---
+        if prev_df.empty:
+            print("📈 Fresh Entry Detected: No previous holdings. Deploying capital into top N ranked stocks.")
+            latest_date = pd.Timestamp((datetime.now() - timedelta(days=(2 if datetime.now().weekday() == 6 else 1 if datetime.now().weekday() == 5 else 0))).date())
+            rankings = self.rank_stocks(as_of_date=latest_date)
+
+            if rankings.empty:
+                print("⚠️ No valid ranking available to re-enter.")
+                return []
+
+            rankings = rankings.reset_index(drop=True)
+            rankings["Rank"] = rankings.index + 1
+            rankings["CleanSymbol"] = rankings["Symbol"].str.replace(".NS", "", regex=False)
+            new_rows = rankings.head(top_n)[["CleanSymbol", "Rank"]]
+
+            # Get latest prices
+            latest_close = {
+                symbol.replace(".NS", ""): df.loc[latest_date, "Close"]
+                for symbol, df in self.price_data.items()
+                if latest_date in df.index
+            }
+
+            per_stock_alloc = self.config["initial_capital"] / top_n
+            execution_data = []
+
+            for _, row in new_rows.iterrows():
+                symbol = row["CleanSymbol"]
+                price = latest_close.get(symbol)
+                if not price or price == 0:
+                    continue
+                qty = math.floor(per_stock_alloc / price)
+                invested = round(qty * price, 2)
+                execution_data.append({
+                    "Symbol": symbol,
+                    "Rank": row["Rank"],
+                    "Price": round(price, 2),
+                    "Quantity": qty,
+                    "Invested": invested,
+                    "Weight %": round((invested / self.config["initial_capital"]) * 100, 2),
+                    "Action": "BUY"
+                })
+
+            df_exec = pd.DataFrame(execution_data).sort_values("Rank")
+
+            print(f"\n📅 Live Rebalance Date: {latest_date.date()}")
+            print("🚀 Fresh Capital Deployment Plan")
+            print(df_exec.to_string(index=False))
+
+            return df_exec["Symbol"].tolist()
+        
         prev_df["current_price"] = prev_df["symbol"].map(latest_close)
         prev_df["effective_price"] = prev_df.apply(
             lambda row: row["buy_price"] if pd.notna(row.get("buy_price")) and row["buy_price"] > 0 else row["current_price"],

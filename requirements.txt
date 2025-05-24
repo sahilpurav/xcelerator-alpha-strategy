@@ -4,3 +4,5 @@ yfinance
 numpy
 selenium
 undetected-chromedriver
+kiteconnect
+python-dotenv
