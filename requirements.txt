@@ -1,8 +1,12 @@
+# CLI framework
+typer
+
+# Data handling
 pandas
-requests
-yfinance
 numpy
-selenium
-undetected-chromedriver
-kiteconnect
+
+# Yahoo Finance for price data
+yfinance
+
+# Environment variable loader
 python-dotenv
