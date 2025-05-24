@@ -1,4 +1,6 @@
 import typer
+import shutil
+import os
 from typing import Optional
 from execution.run_live import run_live_strategy
 from execution.run_backtest import run_backtest_strategy
@@ -6,6 +8,14 @@ from execution.run_backtest import run_backtest_strategy
 
 app = typer.Typer()
 
+@app.command()
+def clear_cache():
+    """Delete all cached files and reset the strategy state."""
+    if os.path.exists("cache"):
+        shutil.rmtree("cache")
+        print("🗑️ Cache cleared.")
+    else:
+        print("✅ No cache folder found. Nothing to delete.")
 
 @app.command()
 def live():
