@@ -4,7 +4,7 @@ import requests
 from io import StringIO
 from typing import Tuple
 
-def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache") -> Tuple[list[str], list[str]]:
+def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache/universe") -> Tuple[list[str]]:
     """
     Fetch and cache stock symbols from NSE for a given universe.
 
@@ -21,7 +21,7 @@ def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache") -
     except ValueError:
         raise ValueError("Universe format should be like 'nifty100', 'nifty500' etc.")
     
-    url = f"https://www1.nseindia.com/content/indices/ind_nifty{size}list.csv"
+    url = f"https://archives.nseindia.com/content/indices/ind_nifty{size}list.csv"
     cache_file = os.path.join(cache_dir, f"{universe}.csv")
     os.makedirs(cache_dir, exist_ok=True)
 
@@ -34,5 +34,5 @@ def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache") -
         df = pd.read_csv(StringIO(response.text))
         df.to_csv(cache_file, index=False)
 
-    raw = df["Symbol"].dropna().unique().tolist()
-    return raw, [f"{s}.NS" for s in raw]
+    symbols = df["Symbol"].dropna().unique().tolist()
+    return symbols

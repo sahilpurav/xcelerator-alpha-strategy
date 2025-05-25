@@ -1,8 +1,8 @@
 import os
 import json
 import time
-from datetime import datetime
 import undetected_chromedriver as uc
+from utils.date import get_last_trading_day
 
 def scrape(measure: str, cache_dir: str = "cache/filters") -> None:
     """
@@ -41,9 +41,9 @@ def scrape(measure: str, cache_dir: str = "cache/filters") -> None:
 
     # Step 4: Save to file
     os.makedirs(cache_dir, exist_ok=True)
-    today_str = datetime.today().strftime("%Y-%m-%d")
-    output_file = f"{cache_dir}/{measure}-{today_str}.json"
+    last_trading_date = get_last_trading_day()
+    output_file = f"{cache_dir}/{measure}-{last_trading_date}.json"
     with open(output_file, "w") as f:
         json.dump(data, f, indent=2)
 
-    print(f"✅ {measure.upper()} data for {today_str} is saved to {output_file}")
+    print(f"✅ {measure.upper()} data for {last_trading_date} is saved to {output_file}")
