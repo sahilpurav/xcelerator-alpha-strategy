@@ -10,8 +10,11 @@ class ZerodhaBroker:
         self.api_secret = os.getenv("KITE_APP_SECRET")
         self.token_file = os.path.join("cache/secrets", "zerodha_access_token.txt")
         self.kite = KiteConnect(api_key=self.api_key)
+        
+        # auto connect on init
+        self._connect()
 
-    def connect(self):
+    def _connect(self):
         # Check if access_token already exists and is valid
         if os.path.exists(self.token_file):
             with open(self.token_file, "r") as f:

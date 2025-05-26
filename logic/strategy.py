@@ -2,7 +2,7 @@ import pandas as pd
 from utils.market import is_market_strong
 from logic.ranking import rank
 
-def run_strategy(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.DataFrame:
+def get_ranked_stocks(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.DataFrame:
     """
     Executes a single rebalance cycle:
     - Checks market regime

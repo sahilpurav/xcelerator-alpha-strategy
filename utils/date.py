@@ -1,6 +1,7 @@
 import pandas as pd
 from functools import lru_cache
 from datetime import datetime, time
+import yfinance as yf
 
 @lru_cache(maxsize=1)
 def get_last_trading_day(symbol: str = "^NSEI") -> str:
@@ -16,7 +17,7 @@ def get_last_trading_day(symbol: str = "^NSEI") -> str:
     #     raise Exception("Failed to determine last trading day from Yahoo Finance.")
     # last_date = df.index[-1]
     # return pd.to_datetime(last_date).strftime("%Y-%m-%d")
-    return pd.to_datetime("2025-05-23").strftime("%Y-%m-%d")  # Placeholder for testing purposes
+    return pd.to_datetime("2025-05-26").strftime("%Y-%m-%d")  # Placeholder for testing purposes
 
 def is_market_open_now() -> bool:
     """

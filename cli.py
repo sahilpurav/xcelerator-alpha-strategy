@@ -2,8 +2,8 @@ import typer
 import shutil
 import os
 from typing import Optional
-from execution.run_live import run_live_strategy
-from execution.run_backtest import run_backtest_strategy
+from execution.live import run_live_strategy
+from execution.backtest import run_backtest_strategy
 from broker.zerodha import ZerodhaBroker
 
 
@@ -20,15 +20,6 @@ def clear_cache():
         print("🗑️ Cache cleared.")
     else:
         print("✅ No cache folder found. Nothing to delete.")
-
-@app.command("connect-broker")
-def connect_broker():
-    """
-    Manually connect to Zerodha broker and refresh session token.
-    Run this before using live strategy to avoid session prompts.
-    """
-    broker = ZerodhaBroker()
-    broker.connect()
 
 @app.command()
 def live():

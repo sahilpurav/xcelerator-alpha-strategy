@@ -1,5 +1,6 @@
 import pandas as pd
 import math
+    
 
 def generate_execution_plan(
     held_stocks: list[str],
