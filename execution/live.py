@@ -4,8 +4,9 @@ from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
 from utils.date import get_last_trading_day
 from logic.strategy import get_ranked_stocks, generate_band_adjusted_portfolio
-from execution.planner import generate_execution_plan
+from execution.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 import pandas as pd
+from execution.place_orders import execute_orders
 from broker.zerodha import ZerodhaBroker
 
 def _get_filtered_universe() -> list[str]:
@@ -37,60 +38,145 @@ def _get_previous_holdings(broker: ZerodhaBroker) -> list[dict]:
         for h in holdings if h["quantity"] > 0
     ]
 
-def run_live_strategy(top_n: int = 15, band: int = 5, additional_capital: float = 0.0):
-    """
-    Executes the live rebalance logic for the current cycle.
-    - Filters universe
-    - Fetches price data
-    - Ranks stocks
-    - Generates portfolio based on band logic
-    - Displays execution plan
-    - Optionally places orders via broker
-    """
-    
-    print("\n🚀 Running live strategy...")
+def _display_execution_plan(exec_df: pd.DataFrame, title: str):
+    print(f"\n📦 {title}")
+    preferred_cols = ["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
+    available_cols = [col for col in preferred_cols if col in exec_df.columns]
+    print(exec_df[available_cols].to_string(index=False))
 
-    # Step 1: Resolve date
+def run_initial_investment(top_n: int, amount: float):
+    """
+    Executes the initial investment strategy by selecting the top N ranked stocks from the filtered universe,
+    allocating the specified total capital among them, and displaying the resulting execution plan.
+    Args:
+        top_n (int): The number of top-ranked stocks to select for investment.
+        amount (float): The total capital to be allocated across the selected stocks.
+    Returns:
+        None
+    Workflow:
+        1. Retrieves the last trading day and prints it.
+        2. Fetches the filtered universe of stocks and appends index symbol.
+        3. Obtains the latest price data for the selected symbols.
+        4. Ranks the stocks based on predefined criteria.
+        5. Selects the top N stocks with the best (lowest) total rank.
+        6. Generates an execution plan for initial investment allocation.
+        7. Displays the execution plan to the user.
+    """
     as_of_date = pd.to_datetime(get_last_trading_day())
-    print(f"📆 Last Trading Day: {as_of_date.date()}")
+    print(f"\n🟢 Running initial investment strategy as of {as_of_date.date()}")
 
-    # Step 2: Universe + Prices
-    filtered = _get_filtered_universe()
-    symbols = [f"{s}.NS" for s in filtered] + ["^NSEI"]
+    universe = _get_filtered_universe()
+    symbols = [f"{s}.NS" for s in universe] + ["^NSEI"]
     price_data = _get_latest_prices(symbols, as_of_date)
 
-    # Step 4: Get latest ranking
-    ranked_stocks_df = get_ranked_stocks(price_data, as_of_date)
-    top_n_df = ranked_stocks_df.nsmallest(top_n, "total_rank")
-    if top_n_df.empty:
-        print("💤 Market weak or no opportunities. Strategy will stay in cash.")
-        return
+    ranked_df = get_ranked_stocks(price_data, as_of_date)
+    top_n_df = ranked_df.nsmallest(top_n, "total_rank")
+    selected = top_n_df["symbol"].tolist()
 
-    # Step 5: Get live holdings from broker
+    exec_df = plan_initial_investment(
+        symbols=selected,
+        price_data=price_data,
+        as_of_date=as_of_date,
+        total_capital=amount,
+        ranked_df=ranked_df
+    )
+
+    _display_execution_plan(exec_df, "Initial Investment Plan")
+
+    broker = ZerodhaBroker()
+    execute_orders(exec_df, broker, True)
+    
+def run_topup_only(amount: float):
+    """
+    Distributes new capital equally across currently held stocks.
+    No ranking, no sells — just top-up.
+    """
+    as_of_date = pd.to_datetime(get_last_trading_day())
+    print(f"\n💰 Running capital top-up strategy as of {as_of_date.date()}...")
+
+    broker = ZerodhaBroker()
+    previous_holdings = _get_previous_holdings(broker)
+
+    if not previous_holdings:
+        print("⚠️ No holdings found. Use `initial` command to start portfolio.")
+        return
+    
+    held_symbols = [h["symbol"] for h in previous_holdings]
+    symbols = [f"{s}.NS" for s in held_symbols]
+    price_data = _get_latest_prices(symbols, as_of_date)
+    
+    exec_df = plan_top_up_investment(
+        previous_holdings=previous_holdings,
+        price_data=price_data,
+        as_of_date=as_of_date,
+        additional_capital=amount
+    )
+
+    _display_execution_plan(exec_df, "Top-Up Plan")
+    execute_orders(exec_df, broker, True)
+
+def run_rebalance(band: int = 5):
+    """
+    Runs the weekly rebalance for Xcelerator Alpha Strategy.
+    Automatically uses the number of current holdings as top_n.
+    Sells stocks outside band, buys new entries using freed capital only.
+    """
+    as_of_date = pd.to_datetime(get_last_trading_day())
+    print(f"\n🔄 Running weekly rebalance strategy as of {as_of_date.date()}...")
+
     broker = ZerodhaBroker()
     previous_holdings = _get_previous_holdings(broker)
     held_symbols = [h["symbol"] for h in previous_holdings]
 
-    # Step 6: Apply band logic
+    if not held_symbols:
+        print("⚠️ No current holdings found. Use `initial` command to deploy first.")
+        return
+
+    top_n = len(held_symbols)
+
+    # Step 1: Get universe (filtered) and symbols for ranking
+    universe = _get_filtered_universe()
+    universe_symbols = [f"{s}.NS" for s in universe]
+
+    # Step 2: Extend symbol list with held stocks (for pricing)
+    price_symbols = list(set(universe_symbols + [f"{s}.NS" for s in held_symbols])) + ["^NSEI"]
+    price_data = _get_latest_prices(price_symbols, as_of_date)
+
+    # Filter out non-universe prices before ranking
+    price_data_for_ranking = {
+        symbol: df for symbol, df in price_data.items()
+        if symbol in universe_symbols or symbol == "^NSEI"
+    }
+
+    # Step 3: Get ranked DataFrame (only on filtered universe)
+    ranked_df = get_ranked_stocks(price_data_for_ranking, as_of_date)
+
     held, new_entries, removed, _ = generate_band_adjusted_portfolio(
-        ranked_stocks_df, held_symbols, top_n=top_n, band=band
+        ranked_df,
+        held_symbols,
+        top_n,
+        band
     )
 
-    # Step 7: Generate execution plan
-    exec_df = generate_execution_plan(
-        held, new_entries, removed, previous_holdings,
-        price_data, as_of_date, additional_capital, ranked_stocks_df
+    # Step 6: Generate final execution plan
+    exec_df = plan_rebalance_investment(
+        held_stocks=held,
+        new_entries=new_entries,
+        removed_stocks=removed,
+        previous_holdings=previous_holdings,
+        price_data=price_data,
+        as_of_date=as_of_date,
+        ranked_df=ranked_df
     )
 
-    # Step 8: Display
-    print("\n📦 Final Execution Plan")
-    display_cols = ["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
-    print(exec_df[display_cols].to_string(index=False))
+    freed_capital = exec_df.query("Action == 'SELL'")["Invested"].sum()
+    print(f"\n💸 Capital freed from SELLs: ₹{freed_capital:,.2f}")
 
-    # Step 9: Place orders (SELL first, then BUY)
-    # for _, row in exec_df.query("Action == 'SELL'").iterrows():
-    #     broker.place_market_order(row["Symbol"], row["Quantity"], transaction_type="SELL")
+    print("\n🔍 Detailed SELL capital breakdown:")
+    print(exec_df.query("Action == 'SELL'")[["Symbol", "Quantity", "Price", "Invested"]])
 
-    # for _, row in exec_df.query("Action == 'BUY'").iterrows():
-    #     broker.place_market_order(row["Symbol"], row["Quantity"], transaction_type="BUY")
+
+    # Step 7: Display and confirm execution
+    _display_execution_plan(exec_df, "Rebalance Plan")
+    execute_orders(exec_df, broker)
 

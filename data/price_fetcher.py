@@ -81,7 +81,7 @@ def download_and_cache_prices(
             start=start,
             end=end,
             group_by="ticker",
-            auto_adjust=False,
+            auto_adjust=True,
             threads=True,
             progress=False
         )
@@ -95,7 +95,7 @@ def download_and_cache_prices(
         try:
             df = data[symbol] if isinstance(data.columns, pd.MultiIndex) else data
             df = df.dropna()
-            df = df[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']]
+            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
             df = df.rename_axis("Date").reset_index().set_index("Date").sort_index()
             cached_path = os.path.join(cache_dir, f"{symbol}.csv")
 

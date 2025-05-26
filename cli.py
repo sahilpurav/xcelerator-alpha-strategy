@@ -2,9 +2,8 @@ import typer
 import shutil
 import os
 from typing import Optional
-from execution.live import run_live_strategy
+from execution.live import run_initial_investment, run_rebalance, run_topup_only
 from execution.backtest import run_backtest_strategy
-from broker.zerodha import ZerodhaBroker
 
 
 app = typer.Typer()
@@ -22,12 +21,24 @@ def clear_cache():
         print("✅ No cache folder found. Nothing to delete.")
 
 @app.command()
-def live():
+def initial(
+    top_n: int = typer.Option(15, prompt="📊 Enter number of stocks to invest in (top_n)"),
+    amount: float = typer.Option(..., prompt="💰 Enter the total capital to invest (amount in ₹)")
+):
     """
-    Run the live rebalance for Xcelerator Alpha Strategy.
-    Fetches latest prices, filters stocks, ranks, and prints final portfolio.
+    Run initial investment interactively with prompts.
     """
-    run_live_strategy()
+    run_initial_investment(top_n=top_n, amount=amount)
+
+@app.command()
+def rebalance():
+    """Run weekly rebalance with optional fresh capital"""
+    run_rebalance()
+
+@app.command()
+def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)")):
+    """Top up capital in current holdings only"""
+    run_topup_only(amount)
 
 
 @app.command()

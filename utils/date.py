@@ -11,7 +11,6 @@ def get_last_trading_day(symbol: str = "^NSEI") -> str:
 
     Results are cached in-memory for the duration of the script.
     """
-    print(f"📆 Fetching last trading date for {symbol} from Yahoo Finance...")
     # df = yf.download(symbol, period="7d", interval="1d", progress=False, auto_adjust=False)
     # if df.empty:
     #     raise Exception("Failed to determine last trading day from Yahoo Finance.")
