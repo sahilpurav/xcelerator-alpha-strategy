@@ -4,18 +4,31 @@ import os
 from typing import Optional
 from execution.run_live import run_live_strategy
 from execution.run_backtest import run_backtest_strategy
+from broker.zerodha import ZerodhaBroker
 
 
 app = typer.Typer()
 
 @app.command()
 def clear_cache():
-    """Delete all cached files and reset the strategy state."""
+    """
+    Delete all cached files and reset the strategy state.
+    This will remove all cached price data and reset the strategy state.
+    """
     if os.path.exists("cache"):
         shutil.rmtree("cache")
         print("🗑️ Cache cleared.")
     else:
         print("✅ No cache folder found. Nothing to delete.")
+
+@app.command("connect-broker")
+def connect_broker():
+    """
+    Manually connect to Zerodha broker and refresh session token.
+    Run this before using live strategy to avoid session prompts.
+    """
+    broker = ZerodhaBroker()
+    broker.connect()
 
 @app.command()
 def live():

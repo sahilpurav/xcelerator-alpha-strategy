@@ -1,12 +1,15 @@
 {
     "cSpell.words": [
         "backtest",
+        "dotenv",
+        "kiteconnect",
         "LIQUIDBEES",
         "longterm",
         "lookback",
         "NSEI",
         "rsis",
         "shortterm",
+        "tradingsymbol",
         "Xcelerator"
     ]
 }
