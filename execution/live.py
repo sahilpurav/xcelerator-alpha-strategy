@@ -169,13 +169,6 @@ def run_rebalance(band: int = 5):
         ranked_df=ranked_df
     )
 
-    freed_capital = exec_df.query("Action == 'SELL'")["Invested"].sum()
-    print(f"\n💸 Capital freed from SELLs: ₹{freed_capital:,.2f}")
-
-    print("\n🔍 Detailed SELL capital breakdown:")
-    print(exec_df.query("Action == 'SELL'")[["Symbol", "Quantity", "Price", "Invested"]])
-
-
     # Step 7: Display and confirm execution
     _display_execution_plan(exec_df, "Rebalance Plan")
     execute_orders(exec_df, broker)
