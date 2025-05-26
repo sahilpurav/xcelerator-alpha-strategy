@@ -1,16 +1,20 @@
 import os
 from kiteconnect import KiteConnect
 from dotenv import load_dotenv
+import typer
 
 class ZerodhaBroker:
     def __init__(self):
         load_dotenv()
         self.api_key = os.getenv("KITE_APP_KEY")
         self.api_secret = os.getenv("KITE_APP_SECRET")
-        self.token_file = "access_token.txt"
+        self.token_file = os.path.join("cache/secrets", "zerodha_access_token.txt")
         self.kite = KiteConnect(api_key=self.api_key)
+        
+        # auto connect on init
+        self._connect()
 
-    def connect(self):
+    def _connect(self):
         # Check if access_token already exists and is valid
         if os.path.exists(self.token_file):
             with open(self.token_file, "r") as f:
@@ -24,16 +28,20 @@ class ZerodhaBroker:
                     print("⚠️  Token invalid, need new login.")
 
         # Generate new token via login flow
-        print("🔗 Visit this URL to get your request token:")
-        print(self.kite.login_url())
-        request_token = input("Paste request_token from redirected URL: ").strip()
+        print(f"🔗 Visit this URL to get your request token: {self.kite.login_url()}")
+        request_token = typer.prompt("🔑 Paste request_token from redirected URL")
 
         try:
             session = self.kite.generate_session(request_token, api_secret=self.api_secret)
             access_token = session["access_token"]
             self.kite.set_access_token(access_token)
+            
+            # ✅ Ensure cache/secrets/ exists before saving
+            os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
+
             with open(self.token_file, "w") as f:
                 f.write(access_token)
+            
             print("✅ Session established and token saved.")
         except Exception as e:
             print(f"❌ Error generating session: {e}")
