@@ -167,57 +167,41 @@ def plan_rebalance_investment(
     ranked_df: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    Generates full execution plan (HOLD, SELL, BUY) during rebalance using only
-    existing capital from removed stocks. No new capital is injected.
-
-    Parameters:
-    - held_stocks: stocks to HOLD
-    - new_entries: stocks to BUY
-    - removed_stocks: stocks to SELL
-    - previous_holdings: dicts with symbol, quantity, buy_price
-    - price_data: symbol -> price DataFrame
-    - as_of_date: rebalance date
-    - ranked_df: DataFrame with momentum ranks
-
-    Returns:
-    - DataFrame with full execution plan
+    Generate execution plan for rebalance.
+    - Sells removed stocks
+    - Buys new entries and tops up underweight HOLDs using freed capital
+    - Uses normalized rank (1, 2, ..., N), N/A for unranked (e.g., ASM)
     """
 
-    latest_close = {
-        symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
-        for symbol, df in price_data.items()
-        if as_of_date in df.index
-    }
-
-    prev_df = pd.DataFrame(previous_holdings)
-    prev_df["current_price"] = prev_df["symbol"].map(latest_close)
-    prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
-
-    df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
-    df_removed = prev_df[prev_df["symbol"].isin(removed_stocks)].copy()
-
-    freed_capital = df_removed["current_value"].sum()
-    per_stock_alloc = freed_capital / len(new_entries) if new_entries else 0
-
+    # Normalize rank in ranked_df
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
     ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
     rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
 
+    # Build current price map
+    latest_close = {
+        symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
+        for symbol, df in price_data.items()
+        if as_of_date in df.index
+    }
+
+    # Map broker holdings into DataFrame
+    prev_df = pd.DataFrame(previous_holdings)
+    prev_df["current_price"] = prev_df["symbol"].map(latest_close)
+
+    if prev_df["current_price"].isnull().any():
+        missing = prev_df[prev_df["current_price"].isnull()]["symbol"].tolist()
+        print(f"⚠️ Warning: Missing current price for: {missing}")
+
+    prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
+
+    df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
+    df_removed = prev_df[prev_df["symbol"].isin(removed_stocks)].copy()
+
+    # SELLs
     execution_data = []
-
-    for _, row in df_held.iterrows():
-        invested = round(row["quantity"] * row["current_price"], 2)
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Rank": rank_map.get(row["symbol"], "N/A"),
-            "Action": "HOLD",
-            "Price": round(row["current_price"], 2),
-            "Quantity": int(row["quantity"]),
-            "Invested": invested,
-        })
-
     for _, row in df_removed.iterrows():
         execution_data.append({
             "Symbol": row["symbol"],
@@ -228,23 +212,56 @@ def plan_rebalance_investment(
             "Invested": round(row["current_value"], 2),
         })
 
-    for symbol in new_entries:
-        price = latest_close.get(symbol)
-        if not price or price == 0:
-            continue
-        qty = math.floor(per_stock_alloc / price)
+    freed_capital = df_removed["current_value"].sum()
+
+    # Build the list of final stocks (HOLDs + new_entries)
+    final_symbols = list(set(held_stocks + new_entries))
+    df_final = pd.DataFrame([
+        {
+            "symbol": sym,
+            "price": latest_close.get(sym),
+            "current_value": df_held.loc[df_held["symbol"] == sym, "current_value"].values[0]
+            if sym in df_held["symbol"].values else 0
+        }
+        for sym in final_symbols if latest_close.get(sym) is not None
+    ])
+
+    # Calculate target allocation per stock
+    target_weight = (df_final["current_value"].sum() + freed_capital) / len(df_final)
+
+    # Find underweight stocks to top up
+    df_topup = df_final[df_final["current_value"] < target_weight].copy()
+    df_topup["gap"] = target_weight - df_topup["current_value"]
+
+    # Allocate freed capital proportionally based on gap
+    total_gap = df_topup["gap"].sum()
+    for _, row in df_topup.iterrows():
+        alloc = freed_capital * (row["gap"] / total_gap)
+        qty = math.floor(alloc / row["price"])
         if qty == 0:
             continue
-        invested = round(qty * price, 2)
+        invested = round(qty * row["price"], 2)
         execution_data.append({
-            "Symbol": symbol,
-            "Rank": rank_map.get(symbol, "N/A"),
+            "Symbol": row["symbol"],
+            "Rank": rank_map.get(row["symbol"], "N/A"),
             "Action": "BUY",
-            "Price": round(price, 2),
+            "Price": round(row["price"], 2),
             "Quantity": qty,
-            "Invested": invested,
+            "Invested": invested
         })
 
+    # HOLDs (existing quantity remains unchanged)
+    for _, row in df_held.iterrows():
+        execution_data.append({
+            "Symbol": row["symbol"],
+            "Rank": rank_map.get(row["symbol"], "N/A"),
+            "Action": "HOLD",
+            "Price": round(row["current_price"], 2),
+            "Quantity": int(row["quantity"]),
+            "Invested": round(row["current_value"], 2)
+        })
+
+    # Final DataFrame and weights
     df_exec = pd.DataFrame(execution_data)
     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
     df_exec["Weight %"] = df_exec.apply(
@@ -253,3 +270,101 @@ def plan_rebalance_investment(
     )
 
     return df_exec.sort_values(by=["Action", "Symbol"], ascending=[False, True])
+
+
+# def plan_rebalance_investment(
+#     held_stocks: list[str],
+#     new_entries: list[str],
+#     removed_stocks: list[str],
+#     previous_holdings: list[dict],
+#     price_data: dict[str, pd.DataFrame],
+#     as_of_date: pd.Timestamp,
+#     ranked_df: pd.DataFrame
+# ) -> pd.DataFrame:
+#     """
+#     Generates full execution plan (HOLD, SELL, BUY) during rebalance using only
+#     existing capital from removed stocks. No new capital is injected.
+
+#     Parameters:
+#     - held_stocks: stocks to HOLD
+#     - new_entries: stocks to BUY
+#     - removed_stocks: stocks to SELL
+#     - previous_holdings: dicts with symbol, quantity, buy_price
+#     - price_data: symbol -> price DataFrame
+#     - as_of_date: rebalance date
+#     - ranked_df: DataFrame with momentum ranks
+
+#     Returns:
+#     - DataFrame with full execution plan
+#     """
+
+#     latest_close = {
+#         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
+#         for symbol, df in price_data.items()
+#         if as_of_date in df.index
+#     }
+
+#     prev_df = pd.DataFrame(previous_holdings)
+#     prev_df["current_price"] = prev_df["symbol"].map(latest_close)
+#     prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
+
+#     df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
+#     df_removed = prev_df[prev_df["symbol"].isin(removed_stocks)].copy()
+
+#     freed_capital = df_removed["current_value"].sum()
+#     per_stock_alloc = freed_capital / len(new_entries) if new_entries else 0
+
+#     ranked_df = ranked_df.copy()
+#     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
+#     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
+#     ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
+#     rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
+
+#     execution_data = []
+
+#     for _, row in df_held.iterrows():
+#         invested = round(row["quantity"] * row["current_price"], 2)
+#         execution_data.append({
+#             "Symbol": row["symbol"],
+#             "Rank": rank_map.get(row["symbol"], "N/A"),
+#             "Action": "HOLD",
+#             "Price": round(row["current_price"], 2),
+#             "Quantity": int(row["quantity"]),
+#             "Invested": invested,
+#         })
+
+#     for _, row in df_removed.iterrows():
+#         execution_data.append({
+#             "Symbol": row["symbol"],
+#             "Rank": rank_map.get(row["symbol"], "N/A"),
+#             "Action": "SELL",
+#             "Price": round(row["current_price"], 2),
+#             "Quantity": int(row["quantity"]),
+#             "Invested": round(row["current_value"], 2),
+#         })
+
+#     for symbol in new_entries:
+#         price = latest_close.get(symbol)
+#         if not price or price == 0:
+#             continue
+#         qty = math.floor(per_stock_alloc / price)
+#         if qty == 0:
+#             continue
+#         invested = round(qty * price, 2)
+#         execution_data.append({
+#             "Symbol": symbol,
+#             "Rank": rank_map.get(symbol, "N/A"),
+#             "Action": "BUY",
+#             "Price": round(price, 2),
+#             "Quantity": qty,
+#             "Invested": invested,
+#         })
+
+#     df_exec = pd.DataFrame(execution_data)
+#     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
+#     df_exec["Weight %"] = df_exec.apply(
+#         lambda row: round((row["Invested"] / total_value) * 100, 2) if row["Action"] != "SELL" else 0.0,
+#         axis=1
+#     )
+
+#     return df_exec.sort_values(by=["Action", "Symbol"], ascending=[False, True])

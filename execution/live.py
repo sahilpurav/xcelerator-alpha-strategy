@@ -84,7 +84,7 @@ def run_initial_investment(top_n: int, amount: float):
     _display_execution_plan(exec_df, "Initial Investment Plan")
 
     broker = ZerodhaBroker()
-    execute_orders(exec_df, broker, True)
+    execute_orders(exec_df, broker)
     
 def run_topup_only(amount: float):
     """
@@ -113,7 +113,7 @@ def run_topup_only(amount: float):
     )
 
     _display_execution_plan(exec_df, "Top-Up Plan")
-    execute_orders(exec_df, broker, True)
+    execute_orders(exec_df, broker)
 
 def run_rebalance(band: int = 5):
     """
