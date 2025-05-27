@@ -61,7 +61,7 @@ def download_and_cache_prices(
     os.makedirs(cache_dir, exist_ok=True)
 
     # Load from cache if everything is valid and fresh
-    if not is_cache_stale_or_missing(symbols, cache_dir):
+    if not is_cache_stale_or_missing(symbols, cache_dir) and not live_market:
         print("✅ Cache is fresh. Loading all symbols locally...")
         result = {}
         for symbol in symbols:
@@ -72,6 +72,9 @@ def download_and_cache_prices(
             except Exception as e:
                 print(f"⚠️ Failed to load cache for {symbol}: {e}")
         return result
+    
+    if live_market:
+        print("⚠️ Live market detected. Ignoring the cache and using fresh prices.")
 
     # Download fresh data
     print(f"📥 Downloading {len(symbols)} symbols from {start} to {end}...")
