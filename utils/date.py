@@ -37,6 +37,6 @@ def is_market_open_now() -> bool:
     
     # Now check if today is an actual NSE trading day
     india_today_str = now.strftime('%Y-%m-%d')
-    last_trading_day_str = get_last_trading_day().strftime('%Y-%m-%d')
+    last_trading_day_str = get_last_trading_day()
 
     return india_today_str == last_trading_day_str
