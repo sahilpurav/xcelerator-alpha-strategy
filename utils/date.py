@@ -11,12 +11,11 @@ def get_last_trading_day(symbol: str = "^NSEI") -> str:
 
     Results are cached in-memory for the duration of the script.
     """
-    # df = yf.download(symbol, period="7d", interval="1d", progress=False, auto_adjust=False)
-    # if df.empty:
-    #     raise Exception("Failed to determine last trading day from Yahoo Finance.")
-    # last_date = df.index[-1]
-    # return pd.to_datetime(last_date).strftime("%Y-%m-%d")
-    return pd.to_datetime("2025-05-26").strftime("%Y-%m-%d")  # Placeholder for testing purposes
+    df = yf.download(symbol, period="7d", interval="1d", progress=False, auto_adjust=False)
+    if df.empty:
+        raise Exception("Failed to determine last trading day from Yahoo Finance.")
+    last_date = df.index[-1]
+    return pd.to_datetime(last_date).strftime("%Y-%m-%d")
 
 def is_market_open_now() -> bool:
     """
