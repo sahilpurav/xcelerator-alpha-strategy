@@ -1,6 +1,7 @@
 import pandas as pd
 import typer
 from broker.zerodha import ZerodhaBroker
+import time
 
 def execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool = False):
     """
@@ -27,5 +28,6 @@ def execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool =
             if not dry_run:
                 try:
                     broker.place_market_order(symbol, quantity, transaction_type=action)
+                    time.sleep(1)  # Avoid hitting API rate limits
                 except Exception as e:
                     print(f"❌ Failed to {action} {symbol}: {e}")
