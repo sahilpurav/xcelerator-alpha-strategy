@@ -71,6 +71,39 @@ def plan_initial_investment(
 
     return df_exec
 
+def _allocate_to_underweight_targets(
+    targets: list[dict],
+    total_capital: float
+) -> list[dict]:
+    """
+    Allocate capital proportionally to a list of underweight targets.
+    Each target must have: symbol, current_value, price
+    """
+    df = pd.DataFrame(targets)
+    total_value = df["current_value"].sum() + total_capital
+    target_weight = total_value / len(df)
+
+    df = df[df["current_value"] < target_weight].copy()
+    df["gap"] = target_weight - df["current_value"]
+    total_gap = df["gap"].sum()
+
+    execution_data = []
+    for _, row in df.iterrows():
+        alloc = total_capital * (row["gap"] / total_gap)
+        qty = math.floor(alloc / row["price"])
+        if qty == 0:
+            continue
+        invested = round(qty * row["price"], 2)
+        execution_data.append({
+            "Symbol": row["symbol"],
+            "Action": "BUY",
+            "Price": round(row["price"], 2),
+            "Quantity": qty,
+            "Invested": invested
+        })
+
+    return execution_data
+
 
 def plan_top_up_investment(
     previous_holdings: list[dict],
@@ -91,71 +124,30 @@ def plan_top_up_investment(
     Returns:
     - DataFrame with BUY plan: Symbol, Action, Price, Quantity, Invested, Weight %
     """
-
-    # Build latest price lookup
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
         if as_of_date in df.index
     }
 
-    # Build current value DataFrame
     rows = []
     for h in previous_holdings:
         symbol = h["symbol"]
         qty = h["quantity"]
         price = latest_close.get(symbol)
         if price:
-            current_val = qty * price
-            rows.append({"symbol": symbol, "current_value": current_val, "price": price})
+            rows.append({"symbol": symbol, "price": price, "current_value": qty * price})
 
-    df = pd.DataFrame(rows)
-
-    if df.empty:
-        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
-
-    # Total current portfolio value and new target value
-    current_portfolio_value = df["current_value"].sum()
-    total_target_value = current_portfolio_value + additional_capital
-    equal_target_value = total_target_value / len(df)
-
-    # Calculate how much more each stock needs to reach equal weight
-    df["required_allocation"] = equal_target_value - df["current_value"]
-    df["allocatable"] = df["required_allocation"].clip(lower=0)
-
-    total_allocatable = df["allocatable"].sum()
-
-    if total_allocatable == 0:
-        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
-
-    # Scale allocations to fit within additional_capital
-    df["scaled_allocation"] = df["allocatable"] * (additional_capital / total_allocatable)
-
-    # Compute quantity and invested
-    execution_data = []
-    for _, row in df.iterrows():
-        price = row["price"]
-        alloc = row["scaled_allocation"]
-        qty = math.floor(alloc / price)
-        if qty == 0:
-            continue
-        invested = round(qty * price, 2)
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Action": "BUY",
-            "Price": round(price, 2),
-            "Quantity": qty,
-            "Invested": invested,
-        })
+    execution_data = _allocate_to_underweight_targets(rows, additional_capital)
 
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
-        total_invested = df_exec["Invested"].sum()
-        df_exec["Weight %"] = df_exec["Invested"] / total_invested * 100
+        total = df_exec["Invested"].sum()
+        df_exec["Weight %"] = df_exec["Invested"] / total * 100
+        return df_exec
     else:
-        df_exec = pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
+        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
 
-    return df_exec
 
 def plan_rebalance_investment(
     held_stocks: list[str],
@@ -172,22 +164,18 @@ def plan_rebalance_investment(
     - Buys new entries and tops up underweight HOLDs using freed capital
     - Uses normalized rank (1, 2, ..., N), N/A for unranked (e.g., ASM)
     """
-
-    # Normalize rank in ranked_df
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
     ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
     rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
 
-    # Build current price map
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
         if as_of_date in df.index
     }
 
-    # Map broker holdings into DataFrame
     prev_df = pd.DataFrame(previous_holdings)
     prev_df["current_price"] = prev_df["symbol"].map(latest_close)
 
@@ -196,11 +184,9 @@ def plan_rebalance_investment(
         print(f"⚠️ Warning: Missing current price for: {missing}")
 
     prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
-
     df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
     df_removed = prev_df[prev_df["symbol"].isin(removed_stocks)].copy()
 
-    # SELLs
     execution_data = []
     for _, row in df_removed.iterrows():
         execution_data.append({
@@ -214,7 +200,13 @@ def plan_rebalance_investment(
 
     freed_capital = df_removed["current_value"].sum()
 
-    # Build the list of final stocks (HOLDs + new_entries)
+    max_new = len(removed_stocks)
+    if len(new_entries) > max_new:
+        new_entries = sorted(
+            new_entries,
+            key=lambda s: rank_map.get(s, float("inf"))
+        )[:max_new]
+
     final_symbols = list(set(held_stocks + new_entries))
     df_final = pd.DataFrame([
         {
@@ -226,31 +218,15 @@ def plan_rebalance_investment(
         for sym in final_symbols if latest_close.get(sym) is not None
     ])
 
-    # Calculate target allocation per stock
-    target_weight = (df_final["current_value"].sum() + freed_capital) / len(df_final)
+    buy_entries = _allocate_to_underweight_targets(
+        targets=df_final.to_dict("records"),
+        total_capital=freed_capital
+    )
 
-    # Find underweight stocks to top up
-    df_topup = df_final[df_final["current_value"] < target_weight].copy()
-    df_topup["gap"] = target_weight - df_topup["current_value"]
+    for row in buy_entries:
+        row["Rank"] = rank_map.get(row["Symbol"], "N/A")
+        execution_data.append(row)
 
-    # Allocate freed capital proportionally based on gap
-    total_gap = df_topup["gap"].sum()
-    for _, row in df_topup.iterrows():
-        alloc = freed_capital * (row["gap"] / total_gap)
-        qty = math.floor(alloc / row["price"])
-        if qty == 0:
-            continue
-        invested = round(qty * row["price"], 2)
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Rank": rank_map.get(row["symbol"], "N/A"),
-            "Action": "BUY",
-            "Price": round(row["price"], 2),
-            "Quantity": qty,
-            "Invested": invested
-        })
-
-    # HOLDs (existing quantity remains unchanged)
     for _, row in df_held.iterrows():
         execution_data.append({
             "Symbol": row["symbol"],
@@ -261,7 +237,6 @@ def plan_rebalance_investment(
             "Invested": round(row["current_value"], 2)
         })
 
-    # Final DataFrame and weights
     df_exec = pd.DataFrame(execution_data)
     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
     df_exec["Weight %"] = df_exec.apply(
