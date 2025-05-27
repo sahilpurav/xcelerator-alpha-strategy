@@ -1,5 +1,6 @@
 import pandas as pd
 import typer
+import os
 import time
 from data.universe_fetcher import get_universe_symbols
 from logic.filters import apply_universe_filters
@@ -180,6 +181,10 @@ def run_rebalance(band: int = 5):
 
     # Step 3: Get ranked DataFrame (only on filtered universe)
     ranked_df = get_ranked_stocks(price_data_for_ranking, as_of_date)
+    
+    # Store ranked DataFrame in output for reference
+    os.makedirs("output", exist_ok=True)
+    ranked_df.to_csv(f"output/ranked-stocks-{get_last_trading_day()}.csv", index=False)
 
     held, new_entries, removed, _ = generate_band_adjusted_portfolio(
         ranked_df,
