@@ -1,12 +1,13 @@
+import pandas as pd
+import typer
+import time
 from data.universe_fetcher import get_universe_symbols
 from logic.filters import apply_universe_filters
 from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
 from utils.date import get_last_trading_day
 from logic.strategy import get_ranked_stocks, generate_band_adjusted_portfolio
-from execution.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
-import pandas as pd
-from execution.place_orders import execute_orders
+from logic.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 from broker.zerodha import ZerodhaBroker
 
 def _get_filtered_universe() -> list[str]:
@@ -43,6 +44,35 @@ def _display_execution_plan(exec_df: pd.DataFrame, title: str):
     preferred_cols = ["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
     available_cols = [col for col in preferred_cols if col in exec_df.columns]
     print(exec_df[available_cols].to_string(index=False))
+
+def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool = False):
+    """
+    Executes the given execution plan using the broker API.
+    SELLs are executed first, followed by BUYs.
+    """
+
+    # Ask for confirmation
+    if not typer.confirm("⚠️ Do you want to proceed with live order execution?"):
+        print("❎ Skipped live order execution.")
+        return
+    
+    print("\n📡 Placing live orders via broker...")
+
+    for action in ["SELL", "BUY"]:
+        df_action = exec_df.query(f"Action == '{action}'")
+        for _, row in df_action.iterrows():
+            symbol = row["Symbol"]
+            quantity = int(row["Quantity"])
+            if quantity <= 0:
+                continue
+
+            print(f"{'🔻' if action == 'SELL' else '🔺'} {action} {symbol}: Qty = {quantity}")
+            if not dry_run:
+                try:
+                    broker.place_market_order(symbol, quantity, transaction_type=action)
+                    time.sleep(1)  # Avoid hitting API rate limits
+                except Exception as e:
+                    print(f"❌ Failed to {action} {symbol}: {e}")
 
 def run_initial_investment(top_n: int, amount: float):
     """
@@ -84,7 +114,7 @@ def run_initial_investment(top_n: int, amount: float):
     _display_execution_plan(exec_df, "Initial Investment Plan")
 
     broker = ZerodhaBroker()
-    execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker)
     
 def run_topup_only(amount: float):
     """
@@ -113,7 +143,7 @@ def run_topup_only(amount: float):
     )
 
     _display_execution_plan(exec_df, "Top-Up Plan")
-    execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker)
 
 def run_rebalance(band: int = 5):
     """
@@ -171,5 +201,5 @@ def run_rebalance(band: int = 5):
 
     # Step 7: Display and confirm execution
     _display_execution_plan(exec_df, "Rebalance Plan")
-    execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker)
 
