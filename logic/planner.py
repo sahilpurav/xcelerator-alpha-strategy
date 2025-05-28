@@ -114,6 +114,7 @@ def plan_top_up_investment(
     """
     Generates a BUY-only execution plan to distribute additional capital
     across underweight holdings to restore approximate equal weight.
+    Also allocates leftover capital equally by buying 1 share lots of eligible stocks.
     
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
@@ -138,8 +139,33 @@ def plan_top_up_investment(
         if price:
             rows.append({"symbol": symbol, "price": price, "current_value": qty * price})
 
+    # Step 1: Proportional top-up
     execution_data = _allocate_to_underweight_targets(rows, additional_capital)
+    allocated = sum(e["Invested"] for e in execution_data)
+    remaining = additional_capital - allocated
 
+    # Step 2: Try to reinvest residual capital in 1-share lots
+    df_holdings = pd.DataFrame(rows)
+    already_topped_up = {e["Symbol"] for e in execution_data}
+    eligible = df_holdings[~df_holdings["symbol"].isin(already_topped_up)].copy()
+
+    # Sort by price (lowest first to maximize usage)
+    eligible = eligible.sort_values(by="price")
+
+    for _, row in eligible.iterrows():
+        if remaining >= row["price"]:
+            qty = 1
+            invested = round(row["price"] * qty, 2)
+            execution_data.append({
+                "Symbol": row["symbol"],
+                "Action": "BUY",
+                "Price": round(row["price"], 2),
+                "Quantity": qty,
+                "Invested": invested
+            })
+            remaining -= invested
+
+    # Final formatting
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
         total = df_exec["Invested"].sum()
