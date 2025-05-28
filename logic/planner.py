@@ -110,6 +110,7 @@ def plan_top_up_investment(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     additional_capital: float,
+    transaction_cost_pct: float = 0.002  # 0.20% buffer on top-up capital
 ) -> pd.DataFrame:
     """
     Generates a BUY-only execution plan to distribute additional capital
@@ -121,16 +122,19 @@ def plan_top_up_investment(
     - price_data: Dict mapping symbols to price DataFrames
     - as_of_date: Date for which price is used
     - additional_capital: Total capital to be invested
+    - transaction_cost_pct: Percentage of capital reserved for charges (default 0.20%)
 
     Returns:
     - DataFrame with BUY plan: Symbol, Action, Price, Quantity, Invested, Weight %
     """
+    # Step 0: Build latest price lookup
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
         if as_of_date in df.index
     }
 
+    # Step 1: Build current holdings with market value
     rows = []
     for h in previous_holdings:
         symbol = h["symbol"]
@@ -139,18 +143,22 @@ def plan_top_up_investment(
         if price:
             rows.append({"symbol": symbol, "price": price, "current_value": qty * price})
 
-    # Step 1: Proportional top-up
-    execution_data = _allocate_to_underweight_targets(rows, additional_capital)
+    df_holdings = pd.DataFrame(rows)
+
+    # Step 2: Apply transaction buffer on additional capital
+    estimated_cost = additional_capital * transaction_cost_pct
+    usable_capital = max(0, additional_capital - estimated_cost)
+    print(f"🔒 Reserved ₹{estimated_cost:,.2f} ({transaction_cost_pct*100:.2f}%) as buffer for transaction costs.")
+
+    # Step 3: Allocate to underweight targets
+    execution_data = _allocate_to_underweight_targets(rows, usable_capital)
     allocated = sum(e["Invested"] for e in execution_data)
     remaining = additional_capital - allocated
 
-    # Step 2: Try to reinvest residual capital in 1-share lots
-    df_holdings = pd.DataFrame(rows)
+    # Step 4: Reinvest residual capital in 1-share lots
     already_topped_up = {e["Symbol"] for e in execution_data}
     eligible = df_holdings[~df_holdings["symbol"].isin(already_topped_up)].copy()
-
-    # Sort by price (lowest first to maximize usage)
-    eligible = eligible.sort_values(by="price")
+    eligible = eligible.sort_values(by="price")  # Cheapest first
 
     for _, row in eligible.iterrows():
         if remaining >= row["price"]:
@@ -165,7 +173,7 @@ def plan_top_up_investment(
             })
             remaining -= invested
 
-    # Final formatting
+    # Step 5: Final formatting
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
         total = df_exec["Invested"].sum()
@@ -182,14 +190,15 @@ def plan_rebalance_investment(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
-    ranked_df: pd.DataFrame
+    ranked_df: pd.DataFrame,
+    transaction_cost_pct: float = 0.002
 ) -> pd.DataFrame:
     """
     Generate execution plan for rebalance.
     - Sells removed stocks
     - Buys new entries and tops up underweight HOLDs using freed capital
     - Redistributes residual freed capital via 1-share fallback buys
-    - Uses normalized rank (1, 2, ..., N), N/A for unranked (e.g., ASM)
+    - Reserves dynamic buffer assuming 0.20% cost on total traded value (buy + sell)
     """
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
@@ -225,8 +234,13 @@ def plan_rebalance_investment(
             "Invested": round(row["current_value"], 2),
         })
 
-    freed_capital = df_removed["current_value"].sum()
+    # Estimate total traded value as 2 × sell value (buy ≈ sell)
+    total_sell_value = df_removed["current_value"].sum()
+    estimated_cost = total_sell_value * 2 * transaction_cost_pct
+    freed_capital = max(0, total_sell_value - estimated_cost)
+    print(f"🔒 Reserved ₹{estimated_cost:,.2f} ({transaction_cost_pct*100:.2f}%) as buffer for transaction costs.")
 
+    # Select top new entries (max one per removed stock)
     max_new = len(removed_stocks)
     if len(new_entries) > max_new:
         new_entries = sorted(
@@ -234,6 +248,7 @@ def plan_rebalance_investment(
             key=lambda s: rank_map.get(s, float("inf"))
         )[:max_new]
 
+    # Prepare rebalance target universe (held + new)
     final_symbols = list(set(held_stocks + new_entries))
     df_final = pd.DataFrame([
         {
@@ -245,6 +260,7 @@ def plan_rebalance_investment(
         for sym in final_symbols if latest_close.get(sym) is not None
     ])
 
+    # Step 1: Main allocation to underweight targets
     buy_entries = _allocate_to_underweight_targets(
         targets=df_final.to_dict("records"),
         total_capital=freed_capital
@@ -253,7 +269,7 @@ def plan_rebalance_investment(
     used_capital = sum(b["Invested"] for b in buy_entries)
     remaining = freed_capital - used_capital
 
-    # Phase 2: 1-share fallback to reinvest remaining capital
+    # Step 2: Reinvest remaining capital via 1-share fallback buys
     eligible_for_fallback = [
         b for b in buy_entries if latest_close.get(b["Symbol"])
     ]
@@ -275,9 +291,11 @@ def plan_rebalance_investment(
             })
             remaining -= invested
 
+    # Add original BUYs
     for row in buy_entries:
         execution_data.append(row)
 
+    # Add HOLDs
     for _, row in df_held.iterrows():
         execution_data.append({
             "Symbol": row["symbol"],
@@ -288,6 +306,7 @@ def plan_rebalance_investment(
             "Invested": round(row["current_value"], 2)
         })
 
+    # Final formatting
     df_exec = pd.DataFrame(execution_data)
     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
     df_exec["Weight %"] = df_exec.apply(
