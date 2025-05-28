@@ -188,6 +188,7 @@ def plan_rebalance_investment(
     Generate execution plan for rebalance.
     - Sells removed stocks
     - Buys new entries and tops up underweight HOLDs using freed capital
+    - Redistributes residual freed capital via 1-share fallback buys
     - Uses normalized rank (1, 2, ..., N), N/A for unranked (e.g., ASM)
     """
     ranked_df = ranked_df.copy()
@@ -249,8 +250,32 @@ def plan_rebalance_investment(
         total_capital=freed_capital
     )
 
+    used_capital = sum(b["Invested"] for b in buy_entries)
+    remaining = freed_capital - used_capital
+
+    # Phase 2: 1-share fallback to reinvest remaining capital
+    eligible_for_fallback = [
+        b for b in buy_entries if latest_close.get(b["Symbol"])
+    ]
+    eligible_for_fallback.sort(key=lambda b: latest_close[b["Symbol"]])  # cheapest first
+
+    for row in eligible_for_fallback:
+        symbol = row["Symbol"]
+        price = latest_close[symbol]
+        if remaining >= price:
+            qty = 1
+            invested = round(price * qty, 2)
+            execution_data.append({
+                "Symbol": symbol,
+                "Rank": rank_map.get(symbol, "N/A"),
+                "Action": "BUY",
+                "Price": round(price, 2),
+                "Quantity": qty,
+                "Invested": invested
+            })
+            remaining -= invested
+
     for row in buy_entries:
-        row["Rank"] = rank_map.get(row["Symbol"], "N/A")
         execution_data.append(row)
 
     for _, row in df_held.iterrows():
