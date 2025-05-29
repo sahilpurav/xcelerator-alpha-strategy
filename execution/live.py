@@ -113,6 +113,8 @@ def run_topup_only(amount: float):
 
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()
+    print(previous_holdings)
+    exit(0)
 
     if not previous_holdings:
         print("⚠️ No holdings found. Use `initial` command to start portfolio.")

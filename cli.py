@@ -40,6 +40,24 @@ def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital
     """Top up capital in current holdings only"""
     run_topup_only(amount)
 
+@app.command()
+def holdings():
+    """Display current holdings and their details."""
+    from broker.zerodha import ZerodhaBroker
+    broker = ZerodhaBroker()
+    portfolio = broker.get_holdings()
+
+    # Print header
+    print(f"{'Symbol':<12}{'Quantity':>10}{'Average Price':>20}")
+    print("-" * 42)
+
+    # Print each row
+    for stock in portfolio:
+        symbol = stock['symbol']
+        qty = stock['quantity']
+        price = stock['buy_price']
+        print(f"{symbol:<12}{qty:>10}{price:>20}")
+
 
 @app.command()
 def backtest(
