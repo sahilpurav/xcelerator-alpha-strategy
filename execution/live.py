@@ -31,13 +31,15 @@ def _get_previous_holdings(broker: ZerodhaBroker) -> list[dict]:
     Fetches previous holdings from the broker and formats them.
     """
     holdings = broker.get_holdings()
+
     return [
         {
-            "symbol": h["tradingsymbol"].replace(".NS", ""),
-            "quantity": h["quantity"],
-            "buy_price": h["average_price"]
+        'symbol': h['tradingsymbol'],
+        'quantity': h['quantity'] + h['t1_quantity'],
+        'buy_price': h['average_price']
         }
-        for h in holdings if h["quantity"] > 0
+        for h in holdings
+        if (h['quantity'] + h['t1_quantity']) > 0
     ]
 
 def _display_execution_plan(exec_df: pd.DataFrame, title: str):
