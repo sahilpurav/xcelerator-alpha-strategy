@@ -26,22 +26,6 @@ def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
     end = as_of_date.strftime("%Y-%m-%d")
     return download_and_cache_prices(symbols, start=start, end=end)
 
-def _get_previous_holdings(broker: ZerodhaBroker) -> list[dict]:
-    """
-    Fetches previous holdings from the broker and formats them.
-    """
-    holdings = broker.get_holdings()
-
-    return [
-        {
-        'symbol': h['tradingsymbol'],
-        'quantity': h['quantity'] + h['t1_quantity'],
-        'buy_price': h['average_price']
-        }
-        for h in holdings
-        if (h['quantity'] + h['t1_quantity']) > 0
-    ]
-
 def _display_execution_plan(exec_df: pd.DataFrame, title: str):
     print(f"\n📦 {title}")
     preferred_cols = ["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
@@ -128,7 +112,7 @@ def run_topup_only(amount: float):
     print(f"\n💰 Running capital top-up strategy as of {as_of_date.date()}...")
 
     broker = ZerodhaBroker()
-    previous_holdings = _get_previous_holdings(broker)
+    previous_holdings = broker.get_holdings()
 
     if not previous_holdings:
         print("⚠️ No holdings found. Use `initial` command to start portfolio.")
@@ -158,7 +142,7 @@ def run_rebalance(band: int = 5):
     print(f"\n🔄 Running weekly rebalance strategy as of {as_of_date.date()}...")
 
     broker = ZerodhaBroker()
-    previous_holdings = _get_previous_holdings(broker)
+    previous_holdings = broker.get_holdings()
     held_symbols = [h["symbol"] for h in previous_holdings]
 
     if not held_symbols:

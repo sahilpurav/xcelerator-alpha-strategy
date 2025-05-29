@@ -46,8 +46,53 @@ class ZerodhaBroker:
         except Exception as e:
             print(f"❌ Error generating session: {e}")
 
-    def get_holdings(self):
-        return self.kite.holdings()
+    def get_holdings(self) -> list[dict]:
+        holdings_raw = self.kite.holdings()
+        positions_raw = self.kite.positions()["net"]
+
+        holdings = {}
+
+        # Step 1: Start with holdings (quantity + t1)
+        for h in holdings_raw:
+            symbol = h["tradingsymbol"]
+            total_qty = h["quantity"] + h["t1_quantity"]
+            if total_qty > 0:
+                holdings[symbol] = {
+                    "symbol": symbol,
+                    "quantity": total_qty,
+                    "buy_price": h["average_price"]
+                }
+
+        # Step 2: Add or merge CNC positions (same-day buys)
+        for p in positions_raw:
+            if p["product"] != "CNC" or p["quantity"] <= 0:
+                continue
+
+            symbol = p["tradingsymbol"]
+            qty = p["quantity"]
+            price = p["average_price"]
+
+            if symbol in holdings:
+                # Merge if already in holdings
+                existing = holdings[symbol]
+                total_qty = existing["quantity"] + qty
+                # Weighted average buy price
+                total_invested = (existing["quantity"] * existing["buy_price"]) + (qty * price)
+                avg_price = total_invested / total_qty
+                holdings[symbol] = {
+                    "symbol": symbol,
+                    "quantity": total_qty,
+                    "buy_price": avg_price
+                }
+            else:
+                holdings[symbol] = {
+                    "symbol": symbol,
+                    "quantity": qty,
+                    "buy_price": price
+                }
+
+        return list(holdings.values())
+
 
     def place_market_order(self, symbol, quantity, exchange="NSE", transaction_type="BUY"):
         try:
