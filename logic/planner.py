@@ -75,6 +75,18 @@ def _allocate_to_underweight_targets(
     targets: list[dict],
     total_capital: float
 ) -> list[dict]:
+    """
+    Allocates capital to underweight targets based on their current value
+    and the target weight derived from total capital.
+    This function assumes that the targets are underweight and need to be topped up
+    to achieve approximate equal weight.
+    Parameters:
+    - targets: List of dicts with keys 'symbol', 'price', 'current_value'
+    - total_capital: Total capital available for allocation
+    Returns:
+    - List of dicts with execution data for each target to be bought
+      with keys: 'Symbol', 'Action', 'Price', 'Quantity', 'Invested'
+    """
     df = pd.DataFrame(targets)
     total_value = df["current_value"].sum() + total_capital
     target_weight = total_value / len(df)
