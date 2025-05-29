@@ -2,6 +2,7 @@ import os
 from kiteconnect import KiteConnect
 from dotenv import load_dotenv
 import typer
+from logic.display import print_portfolio_table
 
 class ZerodhaBroker:
     def __init__(self):
@@ -46,7 +47,36 @@ class ZerodhaBroker:
         except Exception as e:
             print(f"❌ Error generating session: {e}")
 
+    def get_current_positions(self):
+        """
+        Fetches current CNC positions from Zerodha and returns
+        a list of dicts with Symbol, Quantity, and Avg. Buy Price.
+        """
+        positions = self.kite.positions()["net"]
+        rows = []
+
+        for pos in positions:
+            if pos.get("product") != "CNC":
+                continue
+
+            qty = pos.get("quantity", 0)
+            if qty == 0:
+                continue
+
+            rows.append({
+                "symbol": pos.get("tradingsymbol"),
+                "quantity": qty,
+                "buy_price": pos.get("average_price")
+            })
+
+        return rows
+
     def get_holdings(self) -> list[dict]:
+        """
+        Fetches current holdings from Zerodha and returns
+        a list of dicts with Symbol, Quantity, and Avg. Buy Price.
+        Merges holdings with same-day CNC positions.
+        """
         holdings_raw = self.kite.holdings()
         positions_raw = self.kite.positions()["net"]
 

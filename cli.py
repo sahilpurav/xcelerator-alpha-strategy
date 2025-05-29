@@ -4,6 +4,8 @@ import os
 from typing import Optional
 from execution.live import run_initial_investment, run_rebalance, run_topup_only
 from execution.backtest import run_backtest_strategy
+from broker.zerodha import ZerodhaBroker
+from logic.display import print_portfolio_table
 
 
 app = typer.Typer()
@@ -43,20 +45,34 @@ def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital
 @app.command()
 def holdings():
     """Display current holdings and their details."""
-    from broker.zerodha import ZerodhaBroker
     broker = ZerodhaBroker()
     portfolio = broker.get_holdings()
 
-    # Print header
-    print(f"{'Symbol':<12}{'Quantity':>10}{'Average Price':>20}")
-    print("-" * 42)
+    print_portfolio_table(
+        portfolio,
+        label_map={
+            "symbol": ("Symbol", 12),
+            "quantity": ("Quantity", 10),
+            "buy_price": ("Average Price", 20),
+        },
+    )
 
-    # Print each row
-    for stock in portfolio:
-        symbol = stock['symbol']
-        qty = stock['quantity']
-        price = stock['buy_price']
-        print(f"{symbol:<12}{qty:>10}{price:>20}")
+    
+@app.command()
+def positions(tsv: bool = False):
+    """Display current positions and their details."""
+    broker = ZerodhaBroker()
+    positions = broker.get_current_positions()
+
+    print_portfolio_table(
+        positions,
+        label_map={
+            "symbol": ("Symbol", 12),
+            "quantity": ("Quantity", 10),
+            "buy_price": ("Average Price", 20),
+        },
+        tsv=tsv
+    )
 
 
 @app.command()
