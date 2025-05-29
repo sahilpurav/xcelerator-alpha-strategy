@@ -75,10 +75,6 @@ def _allocate_to_underweight_targets(
     targets: list[dict],
     total_capital: float
 ) -> list[dict]:
-    """
-    Allocate capital proportionally to a list of underweight targets.
-    Each target must have: symbol, current_value, price
-    """
     df = pd.DataFrame(targets)
     total_value = df["current_value"].sum() + total_capital
     target_weight = total_value / len(df)
@@ -88,19 +84,23 @@ def _allocate_to_underweight_targets(
     total_gap = df["gap"].sum()
 
     execution_data = []
+    capital_used = 0
+
     for _, row in df.iterrows():
         alloc = total_capital * (row["gap"] / total_gap)
-        qty = math.floor(alloc / row["price"])
-        if qty == 0:
-            continue
-        invested = round(qty * row["price"], 2)
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Action": "BUY",
-            "Price": round(row["price"], 2),
-            "Quantity": qty,
-            "Invested": invested
-        })
+        est_qty = round(alloc / row["price"])
+        est_invested = est_qty * row["price"]
+
+        # Prevent over-allocation
+        if est_qty > 0 and (capital_used + est_invested) <= total_capital:
+            execution_data.append({
+                "Symbol": row["symbol"],
+                "Action": "BUY",
+                "Price": round(row["price"], 2),
+                "Quantity": est_qty,
+                "Invested": round(est_invested, 2)
+            })
+            capital_used += est_invested
 
     return execution_data
 
