@@ -57,7 +57,7 @@ def generate_band_adjusted_portfolio(
             removed_stocks.append(sym)
 
     top_n_symbols = ranked_df.head(top_n)["symbol"].tolist()
-    new_entries = [s for s in top_n_symbols if s not in held_stocks]
+    new_entries = [s for s in top_n_symbols if s not in held_stocks][: top_n - len(held_stocks)]
     final_portfolio = held_stocks + new_entries
 
     return held_stocks, new_entries, removed_stocks, final_portfolio

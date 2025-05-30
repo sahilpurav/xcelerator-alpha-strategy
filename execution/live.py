@@ -132,7 +132,7 @@ def run_topup_only(amount: float):
     _display_execution_plan(exec_df, "Top-Up Plan")
     _execute_orders(exec_df, broker)
 
-def run_rebalance(band: int = 5):
+def run_rebalance(preview: bool = False, band: int = 5):
     """
     Runs the weekly rebalance for Xcelerator Alpha Strategy.
     Automatically uses the number of current holdings as top_n.
@@ -192,5 +192,7 @@ def run_rebalance(band: int = 5):
 
     # Step 7: Display and confirm execution
     _display_execution_plan(exec_df, "Rebalance Plan")
-    _execute_orders(exec_df, broker)
+
+    if not preview:
+        _execute_orders(exec_df, broker)
 
