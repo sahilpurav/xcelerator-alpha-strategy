@@ -43,7 +43,7 @@ def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital
     run_topup_only(amount)
 
 @app.command()
-def holdings():
+def holdings(tsv: bool = False):
     """Display current holdings and their details."""
     broker = ZerodhaBroker()
     portfolio = broker.get_holdings()
@@ -55,6 +55,7 @@ def holdings():
             "quantity": ("Quantity", 10),
             "buy_price": ("Average Price", 20),
         },
+        tsv=tsv
     )
 
     
