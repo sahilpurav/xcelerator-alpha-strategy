@@ -38,9 +38,9 @@ def rebalance(preview: bool = False, band: int = 5):
     run_rebalance(preview=preview, band=band)
 
 @app.command()
-def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)")):
+def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"), preview: bool = False):
     """Top up capital in current holdings only"""
-    run_topup_only(amount)
+    run_topup_only(amount, preview=preview)
 
 @app.command()
 def holdings(tsv: bool = False):

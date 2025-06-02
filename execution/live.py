@@ -103,7 +103,7 @@ def run_initial_investment(top_n: int, amount: float):
     broker = ZerodhaBroker()
     _execute_orders(exec_df, broker)
     
-def run_topup_only(amount: float):
+def run_topup_only(amount: float, preview = False):
     """
     Distributes new capital equally across currently held stocks.
     No ranking, no sells — just top-up.
@@ -130,7 +130,9 @@ def run_topup_only(amount: float):
     )
 
     _display_execution_plan(exec_df, "Top-Up Plan")
-    _execute_orders(exec_df, broker)
+    
+    if not preview:
+        _execute_orders(exec_df, broker)
 
 def run_rebalance(preview: bool = False, band: int = 5):
     """
