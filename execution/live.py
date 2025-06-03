@@ -26,6 +26,47 @@ def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
     end = as_of_date.strftime("%Y-%m-%d")
     return download_and_cache_prices(symbols, start=start, end=end)
 
+def _override_price_with_broker_last_price(
+    price_data: dict[str, pd.DataFrame],
+    previous_holdings: list[dict],
+    tolerance: float = 0.01
+) -> dict[str, pd.DataFrame]:
+    """
+    Overrides the last available 'Close' price in Yahoo price_data with Zerodha 'last_price',
+    only if the price differs by more than `tolerance`.
+
+    Parameters:
+    - price_data: Dict of {symbol -> price DataFrame} from Yahoo
+    - previous_holdings: List of dicts with keys 'symbol' and 'last_price'
+    - tolerance: Minimum difference to trigger override (default ₹0.01)
+
+    Returns:
+    - Updated price_data dict with selectively overridden Close prices
+    """
+    for h in previous_holdings:
+        symbol = h.get("symbol")
+        last_price = h.get("last_price")
+        if not symbol or last_price is None:
+            continue
+
+        yahoo_symbol = f"{symbol}.NS"
+        df = price_data.get(yahoo_symbol)
+        if df is None or df.empty:
+            continue
+
+        last_date = df.index.max()
+        if last_date not in df.index:
+            continue
+
+        current_close = df.at[last_date, "Close"]
+        if abs(current_close - last_price) <= tolerance:
+            continue
+
+        df.at[last_date, "Close"] = last_price
+        print(f"✅ Overrode {yahoo_symbol} Close on {last_date.date()}: {current_close:.2f} → {last_price:.2f}")
+
+    return price_data
+
 def _display_execution_plan(exec_df: pd.DataFrame, title: str):
     print(f"\n📦 {title}")
     preferred_cols = ["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
@@ -121,6 +162,7 @@ def run_topup_only(amount: float, preview = False):
     held_symbols = [h["symbol"] for h in previous_holdings]
     symbols = [f"{s}.NS" for s in held_symbols]
     price_data = _get_latest_prices(symbols, as_of_date)
+    price_data = _override_price_with_broker_last_price(price_data, previous_holdings)
     
     exec_df = plan_top_up_investment(
         previous_holdings=previous_holdings,
@@ -160,6 +202,7 @@ def run_rebalance(preview: bool = False, band: int = 5):
     # Step 2: Extend symbol list with held stocks (for pricing)
     price_symbols = list(set(universe_symbols + [f"{s}.NS" for s in held_symbols])) + ["^NSEI"]
     price_data = _get_latest_prices(price_symbols, as_of_date)
+    price_data = _override_price_with_broker_last_price(price_data, previous_holdings)
 
     # Filter out non-universe prices before ranking
     price_data_for_ranking = {

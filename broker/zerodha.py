@@ -90,7 +90,8 @@ class ZerodhaBroker:
                 holdings[symbol] = {
                     "symbol": symbol,
                     "quantity": total_qty,
-                    "buy_price": h["average_price"]
+                    "buy_price": h["average_price"],
+                    "last_price": h["last_price"]
                 }
 
         # Step 2: Add or merge CNC positions (same-day buys)
@@ -101,6 +102,7 @@ class ZerodhaBroker:
             symbol = p["tradingsymbol"]
             qty = p["quantity"]
             price = p["average_price"]
+            last_price = p["last_price"]
 
             if symbol in holdings:
                 # Merge if already in holdings
@@ -112,13 +114,15 @@ class ZerodhaBroker:
                 holdings[symbol] = {
                     "symbol": symbol,
                     "quantity": total_qty,
-                    "buy_price": avg_price
+                    "buy_price": avg_price,
+                    "last_price": last_price
                 }
             else:
                 holdings[symbol] = {
                     "symbol": symbol,
                     "quantity": qty,
-                    "buy_price": price
+                    "buy_price": price,
+                    "last_price": last_price
                 }
 
         return list(holdings.values())

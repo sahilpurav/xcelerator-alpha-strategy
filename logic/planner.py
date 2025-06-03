@@ -130,7 +130,7 @@ def plan_top_up_investment(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     additional_capital: float,
-    transaction_cost_pct: float = 0.002  # 0.20% buffer on top-up capital
+    transaction_cost_pct: float = 0.001190
 ) -> pd.DataFrame:
     """
     Generates a BUY-only execution plan to distribute additional capital
@@ -210,7 +210,7 @@ def plan_rebalance_investment(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     ranked_df: pd.DataFrame,
-    transaction_cost_pct: float = 0.002
+    transaction_cost_pct: float = 0.001190
 ) -> pd.DataFrame:
     """
     Rebalance logic fully aligned with user's 5-point vision.
