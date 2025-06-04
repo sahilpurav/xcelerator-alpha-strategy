@@ -63,7 +63,4 @@ def apply_universe_filters(symbols: List[str], cache_dir: str = "cache/filters")
             gsm_data = json.load(f)
             excluded.update(get_excluded_gsm_symbols(gsm_data))
 
-    # Exclude symbols starting with "DUMMY"
-    excluded.update({s for s in symbols if s.startswith("DUMMY")})
-
     return [s for s in symbols if s not in excluded]

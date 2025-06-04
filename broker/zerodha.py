@@ -2,7 +2,6 @@ import os
 from kiteconnect import KiteConnect
 from dotenv import load_dotenv
 import typer
-from logic.display import print_portfolio_table
 import requests
 import re
 import onetimepass as otp
@@ -31,7 +30,6 @@ class ZerodhaBroker:
                 self.kite.set_access_token(token)
                 try:
                     self.kite.profile()
-                    print("✅ Session restored from token file.")
                     return
                 except:
                     print("⚠️  Token invalid, need new login.")

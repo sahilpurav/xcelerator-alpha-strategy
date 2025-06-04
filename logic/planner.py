@@ -94,7 +94,18 @@ def _allocate_topups_to_underweight_holdings(
     """
     import pandas as pd
 
+    # Handle empty targets list
+    if not targets:
+        return []
+    
     df = pd.DataFrame(targets)
+    
+    # Validate required columns exist
+    required_cols = ['symbol', 'price', 'current_value']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        return []
+    
     total_value = df["current_value"].sum() + total_capital
     target_weight = total_value / len(df)
 
@@ -164,11 +175,13 @@ def plan_top_up_investment(
             rows.append({"symbol": symbol, "price": price, "current_value": qty * price})
 
     df_holdings = pd.DataFrame(rows)
+    
+    if not rows:
+        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
 
     # Step 2: Apply transaction buffer on additional capital
     estimated_cost = additional_capital * transaction_cost_pct
     usable_capital = max(0, additional_capital - estimated_cost)
-    print(f"🔒 Reserved ₹{estimated_cost:,.2f} ({transaction_cost_pct*100:.2f}%) as buffer for transaction costs.")
 
     # Step 3: Allocate to underweight targets
     execution_data = _allocate_topups_to_underweight_holdings(rows, usable_capital)
@@ -234,6 +247,13 @@ def plan_rebalance_investment(
     }
 
     prev_df = pd.DataFrame(previous_holdings)
+    
+    if prev_df.empty:
+        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])
+    
+    if "symbol" not in prev_df.columns or "quantity" not in prev_df.columns:
+        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])
+    
     prev_df["current_price"] = prev_df["symbol"].map(latest_close)
     prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
 
@@ -254,7 +274,6 @@ def plan_rebalance_investment(
     total_sell_value = df_removed["current_value"].sum()
     estimated_cost = total_sell_value * 2 * transaction_cost_pct
     freed_capital = max(0, total_sell_value - estimated_cost)
-    print(f"\U0001f512 Reserved ₹{estimated_cost:,.2f} ({transaction_cost_pct*100:.2f}%) as buffer for transaction costs.")
 
     total_portfolio_value = df_held["current_value"].sum() + freed_capital
     target_weight_value = total_portfolio_value / (len(held_stocks) + len(new_entries))
@@ -284,13 +303,14 @@ def plan_rebalance_investment(
 
     # Step 2: Allocate remaining to underweight holdings
     held_targets = []
-    for _, row in df_held.iterrows():
-        if row["current_value"] < target_weight_value:
-            held_targets.append({
-                "symbol": row["symbol"],
-                "price": row["current_price"],
-                "current_value": row["current_value"]
-            })
+    if not df_held.empty and "current_value" in df_held.columns and "current_price" in df_held.columns:
+        for _, row in df_held.iterrows():
+            if row["current_value"] < target_weight_value:
+                held_targets.append({
+                    "symbol": row["symbol"],
+                    "price": row["current_price"],
+                    "current_value": row["current_value"]
+                })
 
     held_exec = _allocate_topups_to_underweight_holdings(held_targets, remaining)
     used += sum(row["Invested"] for row in held_exec)
@@ -343,3 +363,61 @@ def plan_rebalance_investment(
     )
 
     return df_exec.sort_values(by=["Action", "Symbol"], ascending=[False, True])
+
+def plan_exit_all_positions(
+    previous_holdings: list[dict],
+    price_data: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp,
+    ranked_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Plans complete exit from all positions when market regime is weak.
+    Sells all holdings and goes to cash.
+    
+    Parameters:
+    - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
+    - price_data: Dict mapping symbols to price DataFrames
+    - as_of_date: Date for which price is used
+    - ranked_df: DataFrame containing stock rankings (for rank mapping)
+    
+    Returns:
+    - DataFrame with SELL orders for all positions
+    """
+    if not previous_holdings:
+        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
+    
+    # Create rank mapping
+    ranked_df = ranked_df.copy() if not ranked_df.empty else pd.DataFrame()
+    if not ranked_df.empty:
+        ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
+        ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
+        ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
+        rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
+    else:
+        rank_map = {}
+    
+    # Get latest prices
+    latest_close = {
+        symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
+        for symbol, df in price_data.items()
+        if as_of_date in df.index
+    }
+    
+    execution_data = []
+    for holding in previous_holdings:
+        symbol = holding["symbol"]
+        quantity = holding["quantity"]
+        price = latest_close.get(symbol)
+        
+        if price and quantity > 0:
+            execution_data.append({
+                "Symbol": symbol,
+                "Rank": rank_map.get(symbol, "N/A"),
+                "Action": "SELL",
+                "Price": round(price, 2),
+                "Quantity": int(quantity),
+                "Invested": round(quantity * price, 2),
+                "Weight %": 0.0
+            })
+    
+    return pd.DataFrame(execution_data) if execution_data else pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])

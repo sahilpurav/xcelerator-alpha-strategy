@@ -3,9 +3,9 @@ import shutil
 import os
 from typing import Optional
 from execution.live import run_initial_investment, run_rebalance, run_topup_only
-from execution.backtest import run_backtest_strategy
+from execution.backtest import run_backtest
 from broker.zerodha import ZerodhaBroker
-from logic.display import print_portfolio_table
+from logic.display import display_portfolio_table
 
 
 app = typer.Typer()
@@ -18,9 +18,12 @@ def clear_cache():
     """
     if os.path.exists("cache"):
         shutil.rmtree("cache")
-        print("🗑️ Cache cleared.")
+        print("🗑️ Removed 'cache' folder.")
+    if os.path.exists("output"):
+        shutil.rmtree("output")
+        print("🗑️ Removed 'output' folder.")
     else:
-        print("✅ No cache folder found. Nothing to delete.")
+        print("✅ Nothing to delete.")
 
 @app.command()
 def initial(
@@ -48,12 +51,13 @@ def holdings(tsv: bool = False):
     broker = ZerodhaBroker()
     portfolio = broker.get_holdings()
 
-    print_portfolio_table(
+    display_portfolio_table(
         portfolio,
         label_map={
             "symbol": ("Symbol", 12),
             "quantity": ("Quantity", 10),
             "buy_price": ("Average Price", 20),
+            "last_price": ("Close Price", 20),
         },
         tsv=tsv
     )
@@ -65,7 +69,7 @@ def positions(tsv: bool = False):
     broker = ZerodhaBroker()
     positions = broker.get_current_positions()
 
-    print_portfolio_table(
+    display_portfolio_table(
         positions,
         label_map={
             "symbol": ("Symbol", 12),
@@ -79,7 +83,9 @@ def positions(tsv: bool = False):
 @app.command()
 def backtest(
         start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
-        end: Optional[str] = typer.Option(None, help="Optional end date (YYYY-MM-DD). Defaults to today.")
+        end: Optional[str] = typer.Option(None, help="Optional end date (YYYY-MM-DD). Defaults to today."),
+        rebalance_day: str = typer.Option("Friday", help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)"),
+        band: int = typer.Option(5, help="Band size for portfolio stability (higher = less churn)")
 ):
     """
     Run the backtest for Xcelerator Alpha Strategy.
@@ -87,8 +93,10 @@ def backtest(
     Args:
         start (str): Start date in YYYY-MM-DD format.
         end (str): End date in YYYY-MM-DD format.
+        rebalance_day (str): Day of week for rebalancing.
+        band (int): Band size for portfolio stability (default 5).
     """
-    run_backtest_strategy(start, end)
+    run_backtest(start, end, rebalance_day, band)
 
 
 if __name__ == "__main__":
