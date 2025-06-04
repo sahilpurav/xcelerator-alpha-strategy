@@ -1,7 +1,8 @@
 import os
 import json
 from typing import List
-from data.nse_surveillance import scrape
+from data.nse_surveillance import scrape as nse_scrape
+from data.msi_surveillance import scrape as msi_scrape
 from utils.date import get_last_trading_day
 
 def get_excluded_asm_symbols(asm_data: dict) -> set:
@@ -35,9 +36,20 @@ def apply_universe_filters(symbols: List[str], cache_dir: str = "cache/filters")
     gsm_file = os.path.join(cache_dir, f"gsm-{last_trading_date}.json")
 
     if not os.path.exists(asm_file):
-        scrape("asm", cache_dir)
+        try:
+            print("🟡 Trying MarketSmith ASM fetch...")
+            msi_scrape("asm", cache_dir)
+        except Exception as e:
+            print(f"🔴 MarketSmith ASM failed: {e}\n🔁 Falling back to NSE")
+            nse_scrape("asm", cache_dir)
+    
     if not os.path.exists(gsm_file):
-        scrape("gsm", cache_dir)
+        try:
+            print("🟡 Trying MarketSmith GSM fetch...")
+            msi_scrape("gsm", cache_dir)
+        except Exception as e:
+            print(f"🔴 MarketSmith GSM failed: {e}\n🔁 Falling back to NSE")
+            nse_scrape("gsm", cache_dir)
 
     excluded = set()
 
