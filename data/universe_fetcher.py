@@ -35,4 +35,6 @@ def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache/uni
         df.to_csv(cache_file, index=False)
 
     symbols = df["Symbol"].dropna().unique().tolist()
-    return symbols
+
+    # Exclude symbols starting with "DUMMY" and return the rest
+    return [s for s in symbols if not s.startswith("DUMMY")]
