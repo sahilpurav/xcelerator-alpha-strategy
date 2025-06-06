@@ -6,33 +6,55 @@ from datetime import datetime
 from utils.date import is_market_open_now
 from utils.date import get_last_trading_day
 
-def is_cache_stale_or_missing(symbols: list[str], cache_dir: str = "cache/prices") -> bool:
+def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: str = "cache/prices") -> bool:
     """
     Checks if the cache for the given symbols is stale or missing.
+    Also verifies that the cache contains the required historical range if start date is provided.
     Returns True if cache is stale or missing, False otherwise.
     """
     if not symbols:
         return True
 
-    # Check if all cache files exist
-    for symbol in symbols:
-        path = os.path.join(cache_dir, f"{symbol}.csv")
-        if not os.path.exists(path):
-            print(f"🛑 Cache missing for {symbol}")
-            return True
+    # Always check ^NSEI first if it's in the list
+    check_symbol = "^NSEI" if "^NSEI" in symbols else symbols[0]
+    check_path = os.path.join(cache_dir, f"{check_symbol}.csv")
 
-    # Check if the first symbol's file is stale
+    # Check if cache exists
+    if not os.path.exists(check_path):
+        print(f"🛑 Cache missing for {check_symbol}")
+        return True
+
     try:
-        first_path = os.path.join(cache_dir, f"{symbols[0]}.csv")
-        df = pd.read_csv(first_path, parse_dates=["Date"], index_col="Date")
+        df = pd.read_csv(check_path, parse_dates=["Date"], index_col="Date")
+        
+        # Check if we have enough historical data
+        if start:
+            required_start = pd.to_datetime(start)  # Use start date as is
+            earliest_cached = pd.to_datetime(df.index.min()).normalize()
+            
+            if earliest_cached > required_start:
+                print(f"📉 Cache doesn't have enough history:")
+                print(f"   ├── Earliest cached: {earliest_cached.date()}")
+                print(f"   ├── Required start : {required_start.date()}")
+                print(f"   └── Missing {(earliest_cached - required_start).days} days of history")
+                return True
+
+        # Check if we have latest data
         last_cached_date = pd.to_datetime(df.index.max()).normalize()
         last_trading_day = pd.to_datetime(get_last_trading_day()).normalize()
 
         if last_cached_date < last_trading_day:
-            print(f"📉 Cache is stale: last cached = {last_cached_date}, expected = {last_trading_day}")
+            print(f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}")
             return True
+
+        # Check if other symbols exist
+        for symbol in symbols:
+            if not os.path.exists(os.path.join(cache_dir, f"{symbol}.csv")):
+                print(f"🛑 Cache missing for {symbol}")
+                return True
+
     except Exception as e:
-        print(f"⚠️ Error reading cache for {symbols[0]}: {e}")
+        print(f"⚠️ Error reading cache for {check_symbol}: {e}")
         return True
 
     return False
@@ -61,8 +83,8 @@ def download_and_cache_prices(
     os.makedirs(cache_dir, exist_ok=True)
 
     # Load from cache if everything is valid and fresh
-    if not is_cache_stale_or_missing(symbols, cache_dir) and not live_market:
-        print("✅ Cache is fresh. Loading all symbols locally...")
+    if not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir) and not live_market:
+        print("✅ Cache is fresh and contains required history. Loading all symbols locally...")
         result = {}
         for symbol in symbols:
             try:
@@ -81,7 +103,7 @@ def download_and_cache_prices(
     try:
         data = yf.download(
             tickers=symbols,
-            start=start,
+            start=start,  # Use start date as provided (buffer already added in backtest.py)
             end=end,
             group_by="ticker",
             auto_adjust=True,

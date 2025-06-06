@@ -228,12 +228,6 @@ def plan_top_up_investment(
         total = df_exec["Invested"].sum()
         df_exec["Weight %"] = df_exec["Invested"] / total * 100
         
-        if remaining > 0:
-            min_price = eligible["price"].min() if not eligible.empty else float('inf')
-            print(f"\n💡 Unallocated capital: ₹{remaining:,.2f}")
-            if remaining < min_price:
-                print(f"   (Not enough to buy even 1 share of cheapest stock @ ₹{min_price:,.2f})")
-        
         return df_exec
     else:
         return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
