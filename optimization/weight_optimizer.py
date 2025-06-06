@@ -22,19 +22,19 @@ class WeightOptimizer:
     def __init__(self, 
                  start_date: str = "2020-01-01",
                  end_date: str = "2023-12-31",
-                 max_drawdown_threshold: float = -17.0,
+                 max_drawdown_threshold: float = -20.0,
                  top_n: int = 15,
                  band: int = 5,
                  initial_capital: float = 10_00_000,
                  rebalance_frequency: str = "W",
-                 rebalance_day: str = "Friday"):
+                 rebalance_day: str = "Wednesday"):
         """
         Initialize the weight optimizer.
         
         Args:
             start_date: Backtest start date in YYYY-MM-DD format
             end_date: Backtest end date in YYYY-MM-DD format
-            max_drawdown_threshold: Maximum allowed drawdown (e.g., -17.0 for -17%)
+            max_drawdown_threshold: Maximum allowed drawdown (e.g., -20.0 for -20%)
             top_n: Number of stocks in portfolio
             band: Band size for portfolio stability
             initial_capital: Starting capital

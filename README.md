@@ -150,7 +150,7 @@ python cli.py optimize-weights --start 2020-01-01 --end 2023-12-31 \
 | `--end` | End date for backtest | Today |
 | `--method` | Optimization method: `grid` or `scipy` | `grid` |
 | `--step` | Grid search step size (0.05=fine, 0.1=normal, 0.2=coarse) | `0.1` |
-| `--max-dd` | Maximum allowed drawdown percentage | `-17.0` |
+| `--max-dd` | Maximum allowed drawdown percentage | `-20.0` |
 | `--top-n` | Number of stocks in portfolio | `15` |
 | `--band` | Band size for portfolio stability | `5` |
 | `--include-common` | Include predefined weight combinations | `false` |

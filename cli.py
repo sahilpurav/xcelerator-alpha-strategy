@@ -108,7 +108,7 @@ def optimize_weights(
     end: Optional[str] = typer.Option(None, help="End date (YYYY-MM-DD). Defaults to today."),
     method: str = typer.Option("grid", help="Optimization method: 'grid' or 'scipy'"),
     step: float = typer.Option(0.1, help="Grid search step size (0.05 for fine, 0.1 for coarse, 0.2 for quick)"),
-    max_dd: float = typer.Option(-17.0, help="Maximum allowed drawdown percentage (e.g., -17.0 for -17%)"),
+    max_dd: float = typer.Option(-20.0, help="Maximum allowed drawdown percentage (e.g., -20.0 for -20%)"),
     top_n: int = typer.Option(15, help="Number of stocks in portfolio"),
     band: int = typer.Option(5, help="Band size for portfolio stability"),
     save_results: bool = typer.Option(True, help="Save results to CSV file")
@@ -165,7 +165,7 @@ def compare_weights(
     weights: List[str] = typer.Argument(..., help="Weight combinations to compare (e.g., '0.8,0.1,0.1' '0.6,0.2,0.2')"),
     start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
     end: Optional[str] = typer.Option(None, help="End date (YYYY-MM-DD). Defaults to today."),
-    max_dd: float = typer.Option(-17.0, help="Maximum allowed drawdown percentage"),
+    max_dd: float = typer.Option(-20.0, help="Maximum allowed drawdown percentage"),
     top_n: int = typer.Option(15, help="Number of stocks in portfolio"),
     band: int = typer.Option(5, help="Band size for portfolio stability"),
     include_common: bool = typer.Option(False, help="Include common test combinations"),
