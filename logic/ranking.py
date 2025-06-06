@@ -7,7 +7,8 @@ from logic.indicators import (
     calculate_median_traded_value
 )
 
-def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.DataFrame:
+def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp, 
+         weights: tuple[float, float, float] = (0.8, 0.1, 0.1)) -> pd.DataFrame:
     """
     Ranks all stocks in the universe using:
     - Multi-timeframe return (22, 44, 66 days)
@@ -16,6 +17,11 @@ def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.Da
 
     Applies liquidity and quality filters.
     Returns ranked DataFrame with component scores and ranks.
+    
+    Args:
+        price_data: Dictionary of symbol -> DataFrame with OHLCV data
+        as_of_date: Date for ranking calculation
+        weights: Tuple of (return_weight, rsi_weight, proximity_weight) that sum to 1.0
     """
 
     data = []
@@ -72,10 +78,11 @@ def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.Da
     df_scores["proximity_rank"] = df_scores["proximity_score"].rank(ascending=False)
 
     # Weighted Total Rank
+    w1, w2, w3 = weights
     df_scores["total_rank"] = (
-        0.8 * df_scores["return_rank"] +
-        0.1 * df_scores["rsi_rank"] +
-        0.1 * df_scores["proximity_rank"]
+        w1 * df_scores["return_rank"] +
+        w2 * df_scores["rsi_rank"] +
+        w3 * df_scores["proximity_rank"]
     )
 
     return df_scores.sort_values("total_rank")
