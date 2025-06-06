@@ -1,5 +1,9 @@
 import pandas as pd
 import math
+
+# Capital Allocation Strategy Functions:
+# _fill_underweight_gaps_only() - Conservative: Fill gaps only (for rebalance)
+# _maximize_capital_deployment() - Aggressive: 3-step deployment (for top-ups)
     
 def plan_initial_investment(
     symbols: list[str],
@@ -71,20 +75,22 @@ def plan_initial_investment(
 
     return df_exec
 
-def _allocate_topups_to_underweight_holdings(
+def _fill_underweight_gaps_only(
     targets: list[dict],
     total_capital: float,
     transaction_cost_pct: float = 0.001190
 ) -> list[dict]:
     """
-    Allocates capital to underweight targets based on their current value
-    and the target weight derived from total capital.
+    Conservative allocation strategy: Only fills gaps for underweight holdings.
+    
+    Used by rebalance logic where we want targeted, controlled allocation
+    without over-deploying capital. This function stops after filling
+    underweight gaps and doesn't attempt to maximize capital deployment.
 
-    This function assumes:
-    - All targets are underweight (current_value < target_weight)
-    - No trimming is allowed
-    - Capital should be distributed proportionally to the gap
-    - Quantity is floored to avoid overshooting the budget
+    Strategy:
+    - Only targets underweight holdings (current_value < target_weight)
+    - Distributes capital proportionally to the gap size
+    - Conservative approach - no aggressive deployment
     - Transaction costs are accounted for in quantity calculation
 
     Parameters:
@@ -143,6 +149,127 @@ def _allocate_topups_to_underweight_holdings(
     return execution_data
 
 
+def _maximize_capital_deployment(
+    df_holdings: pd.DataFrame,
+    additional_capital: float,
+    transaction_cost_pct: float = 0.001190
+) -> list[dict]:
+    """
+    Aggressive deployment strategy: 3-step approach to maximize capital utilization.
+    
+    Step 1: Fill underweight holdings proportionally
+    Step 2: Equally distribute remaining capital across all stocks in portfolio
+    Step 3: Continue until remaining cash is minimal (< capital * transaction_cost_pct)
+    
+    Used by top-up logic where we want to deploy as much capital as possible
+    while maintaining approximate equal weighting.
+    
+    Parameters:
+    - df_holdings: DataFrame with columns 'symbol', 'price', 'current_value'
+    - additional_capital: Total capital to be invested
+    - transaction_cost_pct: Transaction cost percentage
+    
+    Returns:
+    - List of execution orders with Symbol, Action, Price, Quantity, Invested
+    """
+    import pandas as pd
+    
+    if df_holdings.empty:
+        return []
+    
+    # Step 1: Fill underweight holdings (existing logic)
+    total_value = df_holdings["current_value"].sum() + additional_capital
+    target_weight = total_value / len(df_holdings)
+    
+    underweight_df = df_holdings[df_holdings["current_value"] < target_weight].copy()
+    underweight_df["gap"] = target_weight - underweight_df["current_value"]
+    total_gap = underweight_df["gap"].sum()
+    
+    execution_data = []
+    remaining_capital = additional_capital
+    
+    # Allocate to underweight holdings first
+    for _, row in underweight_df.iterrows():
+        if remaining_capital <= 0:
+            break
+            
+        alloc = additional_capital * (row["gap"] / total_gap) if total_gap > 0 else 0
+        effective_price = row["price"] * (1 + transaction_cost_pct)
+        est_qty = min(int(alloc // effective_price), int(remaining_capital // effective_price))
+        
+        if est_qty > 0:
+            est_invested = est_qty * row["price"]
+            total_cost = est_invested * (1 + transaction_cost_pct)
+            
+            execution_data.append({
+                "Symbol": row["symbol"],
+                "Action": "BUY",
+                "Price": round(row["price"], 2),
+                "Quantity": est_qty,
+                "Invested": round(est_invested, 2)
+            })
+            remaining_capital -= total_cost
+    
+    # Step 2 & 3: Distribute remaining capital equally across all stocks
+    # Continue until remaining capital is close to transaction cost buffer
+    min_remaining_threshold = additional_capital * transaction_cost_pct
+    
+    while remaining_capital > min_remaining_threshold:
+        num_stocks = len(df_holdings)
+        per_stock_allocation = remaining_capital / num_stocks
+        
+        # Track if we made any allocation in this round
+        allocated_this_round = False
+        round_cost = 0
+        round_orders = []
+        
+        # Try to allocate equally across all stocks
+        for _, row in df_holdings.iterrows():
+            effective_price = row["price"] * (1 + transaction_cost_pct)
+            
+            # Calculate quantity based on per-stock allocation, but at least 1 share
+            qty_from_allocation = int(per_stock_allocation // effective_price)
+            qty = max(1, qty_from_allocation) if per_stock_allocation >= effective_price else 0
+            
+            if qty > 0 and round_cost + (qty * effective_price) <= remaining_capital:
+                invested = qty * row["price"]
+                total_cost = invested * (1 + transaction_cost_pct)
+                
+                round_orders.append({
+                    "Symbol": row["symbol"],
+                    "Action": "BUY", 
+                    "Price": round(row["price"], 2),
+                    "Quantity": qty,
+                    "Invested": round(invested, 2)
+                })
+                round_cost += total_cost
+                allocated_this_round = True
+        
+        # If we couldn't allocate to any stock this round, break to avoid infinite loop
+        if not allocated_this_round:
+            break
+            
+        # Add this round's orders to execution data and update remaining capital
+        execution_data.extend(round_orders)
+        remaining_capital -= round_cost
+        
+        # If remaining capital is small enough, break
+        if remaining_capital <= min_remaining_threshold:
+            break
+    
+    # Consolidate orders for same symbol
+    consolidated = {}
+    for order in execution_data:
+        symbol = order["Symbol"]
+        if symbol in consolidated:
+            consolidated[symbol]["Quantity"] += order["Quantity"]
+            consolidated[symbol]["Invested"] += order["Invested"]
+        else:
+            consolidated[symbol] = order.copy()
+    
+    return list(consolidated.values())
+
+
 def plan_top_up_investment(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
@@ -151,16 +278,21 @@ def plan_top_up_investment(
     transaction_cost_pct: float = 0.001190
 ) -> pd.DataFrame:
     """
-    Generates a BUY-only execution plan to distribute additional capital
-    across underweight holdings to restore approximate equal weight.
-    Also allocates leftover capital equally by buying 1 share lots of eligible stocks.
+    Generates a BUY-only execution plan to distribute additional capital efficiently.
+    Uses a 3-step approach:
+    1. Fill underweight holdings proportionally to target weight
+    2. Distribute remaining capital equally across all stocks in portfolio
+    3. Continue allocation rounds until remaining cash is minimal (< capital * transaction_cost_pct)
+    
+    This approach handles both small and large capital amounts efficiently,
+    minimizing leftover cash while maintaining approximate equal weighting.
     
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
     - price_data: Dict mapping symbols to price DataFrames
     - as_of_date: Date for which price is used
     - additional_capital: Total capital to be invested
-    - transaction_cost_pct: Percentage of capital reserved for charges (default 0.20%)
+    - transaction_cost_pct: Percentage of capital reserved for charges (default 0.119%)
 
     Returns:
     - DataFrame with BUY plan: Symbol, Action, Price, Quantity, Invested, Weight %
@@ -186,43 +318,14 @@ def plan_top_up_investment(
     if not rows:
         return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
 
-    # Step 2: Apply transaction buffer on additional capital
-    estimated_cost = additional_capital * transaction_cost_pct
-    usable_capital = max(0, additional_capital - estimated_cost)
-
-    # Step 3: Allocate to underweight targets
-    execution_data = _allocate_topups_to_underweight_holdings(
-        rows, 
-        usable_capital,
+    # Step 2: Use improved top-up allocation logic
+    execution_data = _maximize_capital_deployment(
+        df_holdings,
+        additional_capital,
         transaction_cost_pct
     )
-    allocated_with_costs = sum(e["Invested"] * (1 + transaction_cost_pct) for e in execution_data)
-    remaining = usable_capital - allocated_with_costs
 
-    # Step 4: Reinvest remaining capital maximizing shares per stock
-    already_topped_up = {e["Symbol"] for e in execution_data}
-    eligible = df_holdings[~df_holdings["symbol"].isin(already_topped_up)].copy()
-    eligible = eligible.sort_values(by="price")  # Cheapest first
-
-    for _, row in eligible.iterrows():
-        effective_price = row["price"] * (1 + transaction_cost_pct)
-        if remaining >= effective_price:
-            # Calculate max shares we can buy with remaining capital (accounting for transaction costs)
-            qty = int(remaining // effective_price)
-            if qty > 0:
-                invested = row["price"] * qty
-                total_cost = invested * (1 + transaction_cost_pct)
-                execution_data.append({
-                    "Symbol": row["symbol"],
-                    "Action": "BUY",
-                    "Price": round(row["price"], 2),
-                    "Quantity": qty,
-                    "Invested": round(invested, 2)
-                })
-                # Calculate exact transaction cost to avoid rounding errors
-                remaining = remaining - total_cost
-
-    # Step 5: Final formatting and log unallocated capital
+    # Step 3: Final formatting
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
         total = df_exec["Invested"].sum()
@@ -329,7 +432,7 @@ def plan_rebalance_investment(
                     "current_value": row["current_value"]
                 })
 
-    held_exec = _allocate_topups_to_underweight_holdings(held_targets, remaining)
+    held_exec = _fill_underweight_gaps_only(held_targets, remaining)
     used += sum(row["Invested"] for row in held_exec)
     remaining = freed_capital - used
 
