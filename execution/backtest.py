@@ -306,6 +306,15 @@ class BacktestEngine:
                     
                     print("─"*80)
                 
+                # Show current portfolio after rebalance
+                current_holdings = self.broker.get_holdings()
+                if current_holdings:
+                    print("\n📊 STOCK PORTFOLIO")
+                    print("─"*80)
+                    portfolio_symbols = [holding["symbol"] for holding in current_holdings]
+                    print(f"  HOLDINGS ({len(portfolio_symbols)})  : {wrap_symbols(portfolio_symbols)}")
+                    print("─"*80)
+                
                 last_portfolio_value = current_value
                 
                 # Check if we've exited all positions due to weak market regime
