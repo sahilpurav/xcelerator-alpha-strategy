@@ -87,7 +87,7 @@ def positions(tsv: bool = False):
 def backtest(
         start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
         end: Optional[str] = typer.Option(None, help="Optional end date (YYYY-MM-DD). Defaults to today."),
-        rebalance_day: str = typer.Option("Friday", help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)"),
+        rebalance_day: str = typer.Option("Wednesday", help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)"),
         band: int = typer.Option(5, help="Band size for portfolio stability (higher = less churn)")
 ):
     """

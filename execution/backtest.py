@@ -16,7 +16,7 @@ class BacktestEngine:
     """
     
     def __init__(self, initial_capital: float = 100_000, top_n: int = 15, band: int = 5, 
-                 rebalance_frequency: str = "W", rebalance_day: str = "Friday", transaction_cost_pct: float = 0.001190):
+                 rebalance_frequency: str = "W", rebalance_day: str = "Wednesday", transaction_cost_pct: float = 0.001190):
         """
         Initialize the backtest engine.
         
