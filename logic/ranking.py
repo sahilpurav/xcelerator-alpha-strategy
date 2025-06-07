@@ -25,6 +25,7 @@ def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp,
     """
 
     data = []
+    return_weight, rsi_weight, proximity_weight = weights # Weighted Total Rank
 
     for symbol, df in price_data.items():
         # Only use data up to the rebalance date
@@ -46,13 +47,15 @@ def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp,
         if calculate_avg_volume(df, 22) < 10_000:
             continue
 
-        # 4. Calculate composite momentum scores
-        returns = [calculate_return(df, d) for d in (22, 44, 66)]
-        rsis = [calculate_rsi(df, d) for d in (22, 44, 66)]
-        proximity = calculate_high_proximity(df, 252)
+        # 4. Calculate composite momentum scores. Do it only if weight > 0 to optimize performance
+        returns = [calculate_return(df, d) for d in (22, 44, 66)] if return_weight > 0 else [0, 0, 0]
+        rsis = [calculate_rsi(df, d) for d in (22, 44, 66)] if rsi_weight > 0 else [0, 0, 0]
+        proximity = calculate_high_proximity(df, 252) if proximity_weight > 0 else 0
 
-        # Skip if any indicator is missing
-        if any(x is None for x in returns + rsis) or proximity is None:
+        # Skip if any REQUIRED indicator is missing (only check indicators with weight > 0)
+        if ((return_weight > 0 and any(x is None for x in returns)) or
+            (rsi_weight > 0 and any(x is None for x in rsis)) or
+            (proximity_weight > 0 and proximity is None)):
             continue
 
         return_score = sum(returns) / 3
@@ -77,12 +80,10 @@ def rank(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timestamp,
     df_scores["rsi_rank"] = df_scores["rsi_score"].rank(ascending=False)
     df_scores["proximity_rank"] = df_scores["proximity_score"].rank(ascending=False)
 
-    # Weighted Total Rank
-    w1, w2, w3 = weights
     df_scores["total_rank"] = (
-        w1 * df_scores["return_rank"] +
-        w2 * df_scores["rsi_rank"] +
-        w3 * df_scores["proximity_rank"]
+        return_weight * df_scores["return_rank"] +
+        rsi_weight * df_scores["rsi_rank"] +
+        proximity_weight * df_scores["proximity_rank"]
     )
 
     return df_scores.sort_values("total_rank")
