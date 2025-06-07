@@ -80,6 +80,19 @@ python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
   --rebalance-day Wednesday --band 7
 ```
 
+#### Stock Rankings for Specific Date
+Get momentum rankings for any historical date:
+```bash
+# Basic ranking for a specific date
+python cli.py rank --date 2024-06-05
+
+# Custom parameters with different weights and display count
+python cli.py rank --date 2024-06-05 --weights "0.7,0.2,0.1" --top-n 20
+
+# Force cache refresh if needed
+python cli.py rank --date 2024-06-05 --force-refresh
+```
+
 #### Cache Management
 Reset cached data and strategy state:
 ```bash
@@ -96,6 +109,8 @@ python cli.py clear-cache
 | `holdings` | `--tsv` | View current portfolio holdings |
 | `positions` | `--tsv` | View current trading positions |
 | `backtest` | `--start`, `--end`, `--rebalance-day`, `--band` | Historical strategy testing |
+| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh` | Get stock rankings for specific date |
+| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh` | Get stock rankings for a specific date |
 | `clear-cache` | - | Reset cached data and state |
 
 ## ⚖️ Weight Optimization
@@ -156,6 +171,26 @@ python cli.py optimize-weights --start 2020-01-01 --end 2023-12-31 \
 | `--include-common` | Include predefined weight combinations | `false` |
 | `--save-results` | Save results to CSV file | `true` |
 
+### 📊 Stock Ranking Parameters
+
+The `rank` command provides detailed momentum rankings for any historical date:
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--date` | Date for ranking calculation (YYYY-MM-DD) | Required |
+| `--weights` | Ranking weights as 'return,rsi,proximity' (must sum to 1.0) | `0.8,0.1,0.1` |
+| `--top-n` | Number of top stocks to display | `50` |
+| `--save-results` | Save results to CSV file | `true` |
+| `--force-refresh` | Force cache refresh even if data exists | `false` |
+
+**Weight Components:**
+- **Return Weight**: Importance of multi-timeframe returns (22, 44, 66 days)
+- **RSI Weight**: Importance of multi-timeframe RSI momentum (22, 44, 66 days)  
+- **Proximity Weight**: Importance of proximity to 52-week high
+
+**Cache Intelligence:**
+The command automatically ensures 400 days of historical data is available before the ranking date. If the cache is missing data or stale, it will regenerate from the required start date.
+
 ### 💡 Weight Optimization Tips
 
 - **Start with coarse search**: Use `--step 0.2` for quick exploration
@@ -180,3 +215,4 @@ Install [Rosetta 2](https://support.apple.com/en-us/HT211861), Apple’s Intel-t
 
 ```bash
 softwareupdate --install-rosetta --agree-to-license
+```
