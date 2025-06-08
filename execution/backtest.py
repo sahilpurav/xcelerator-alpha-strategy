@@ -120,7 +120,7 @@ class BacktestEngine:
             symbols=selected_symbols,
             price_data=price_data,
             as_of_date=date,
-            total_capital=self.initial_capital,
+            total_capital=self.broker.cash,
             ranked_df=ranked_df
         )
         

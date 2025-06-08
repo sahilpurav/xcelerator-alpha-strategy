@@ -35,15 +35,17 @@ def plan_initial_investment(
         if as_of_date in df.index
     }
 
+    # Two-pass allocation strategy to maximize capital deployment
     per_stock_alloc = total_capital / len(symbols) if symbols else 0
-    execution_data = []
-
+    
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
     ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
     rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
 
+    # First pass: Identify which stocks can actually be purchased with initial allocation
+    purchasable_stocks = []
     for symbol in symbols:
         sym_clean = symbol.replace(".NS", "")
         price = latest_close.get(sym_clean)
@@ -51,20 +53,35 @@ def plan_initial_investment(
         if not price or price == 0:
             continue
 
-        qty = math.floor(per_stock_alloc / price)
-        if qty == 0:
-            continue
+        # Check if we can buy at least 1 share with the per-stock allocation
+        if per_stock_alloc >= price:
+            purchasable_stocks.append(sym_clean)
 
-        invested = round(qty * price, 2)
+    # Second pass: Redistribute total capital equally among purchasable stocks only
+    execution_data = []
+    if purchasable_stocks:
+        adjusted_per_stock_alloc = total_capital / len(purchasable_stocks)
+        
+        for sym_clean in purchasable_stocks:
+            price = latest_close.get(sym_clean)
+            
+            if not price or price == 0:
+                continue
 
-        execution_data.append({
-            "Symbol": sym_clean,
-            "Rank": rank_map.get(sym_clean, "N/A"),
-            "Action": "BUY",
-            "Price": round(price, 2),
-            "Quantity": qty,
-            "Invested": invested,
-        })
+            qty = math.floor(adjusted_per_stock_alloc / price)
+            if qty == 0:
+                continue
+
+            invested = round(qty * price, 2)
+
+            execution_data.append({
+                "Symbol": sym_clean,
+                "Rank": rank_map.get(sym_clean, "N/A"),
+                "Action": "BUY",
+                "Price": round(price, 2),
+                "Quantity": qty,
+                "Invested": invested,
+            })
 
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
