@@ -4,7 +4,7 @@ from datetime import datetime, time
 import yfinance as yf
 
 @lru_cache(maxsize=1)
-def get_last_trading_day(symbol: str = "^NSEI") -> str:
+def get_last_trading_day(symbol: str = "^CRSLDX") -> str:
     """
     Returns the last trading day as a string in YYYY-MM-DD format
     using available data from Yahoo Finance for the given index symbol.

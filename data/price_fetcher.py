@@ -15,8 +15,8 @@ def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: 
     if not symbols:
         return True
 
-    # Always check ^NSEI first if it's in the list
-    check_symbol = "^NSEI" if "^NSEI" in symbols else symbols[0]
+    # Always check ^CRSLDX first if it's in the list
+    check_symbol = "^CRSLDX" if "^CRSLDX" in symbols else symbols[0]
     check_path = os.path.join(cache_dir, f"{check_symbol}.csv")
 
     # Check if cache exists

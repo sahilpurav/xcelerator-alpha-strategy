@@ -283,7 +283,7 @@ def rank(
         print(f"📈 Raw universe size: {len(universe_symbols)} stocks")
         
         # Add benchmark
-        symbols_to_fetch = ["^NSEI"] + [f"{symbol}.NS" for symbol in universe_symbols]
+        symbols_to_fetch = ["^CRSLDX"] + [f"{symbol}.NS" for symbol in universe_symbols]
         
         # Calculate required start date (400 days buffer)
         start_date = (as_of_date - pd.Timedelta(days=400)).strftime("%Y-%m-%d")
@@ -306,9 +306,9 @@ def rank(
         print(f"📊 Loaded price data for {len(price_data)} symbols")
         
         # Check market regime
-        benchmark_df = price_data.get("^NSEI")
+        benchmark_df = price_data.get("^CRSLDX")
         if benchmark_df is None:
-            print("❌ Benchmark data (^NSEI) not found")
+            print("❌ Benchmark data (^CRSLDX) not found")
             raise typer.Exit(1)
         
         benchmark_df = benchmark_df[benchmark_df.index <= as_of_date]

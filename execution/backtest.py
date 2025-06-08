@@ -61,7 +61,7 @@ class BacktestEngine:
         universe = get_universe_symbols("nifty500")
         
         # Add .NS suffix for price fetching
-        symbols = [f"{s}.NS" for s in universe] + ["^NSEI"]
+        symbols = [f"{s}.NS" for s in universe] + ["^CRSLDX"]
         
         # Fetch historical data
         start_str = (start_date - timedelta(days=400)).strftime("%Y-%m-%d")  # Extra buffer for indicators
@@ -240,8 +240,8 @@ class BacktestEngine:
         last_portfolio_value = self.initial_capital
         
         # Get all trading dates for daily portfolio tracking
-        if "^NSEI" in price_data:
-            all_dates = price_data["^NSEI"].index
+        if "^CRSLDX" in price_data:
+            all_dates = price_data["^CRSLDX"].index
             trading_dates = [d for d in all_dates if start_date <= d <= end_date]
         else:
             trading_dates = rebalance_dates

@@ -78,7 +78,7 @@ def run_initial_investment(top_n: int, amount: float):
     print(f"\n🟢 Running initial investment strategy as of {as_of_date.date()}")
 
     universe = _get_filtered_universe()
-    symbols = [f"{s}.NS" for s in universe] + ["^NSEI"]
+    symbols = [f"{s}.NS" for s in universe] + ["^CRSLDX"]
     price_data = _get_latest_prices(symbols, as_of_date)
 
     ranked_df = get_ranked_stocks(price_data, as_of_date)
@@ -153,13 +153,13 @@ def run_rebalance(preview: bool = False, band: int = 5):
     universe_symbols = [f"{s}.NS" for s in universe]
 
     # Step 2: Extend symbol list with held stocks (for pricing)
-    price_symbols = list(set(universe_symbols + [f"{s}.NS" for s in held_symbols])) + ["^NSEI"]
+    price_symbols = list(set(universe_symbols + [f"{s}.NS" for s in held_symbols])) + ["^CRSLDX"]
     price_data = _get_latest_prices(price_symbols, as_of_date)
 
     # Filter out non-universe prices before ranking
     price_data_for_ranking = {
         symbol: df for symbol, df in price_data.items()
-        if symbol in universe_symbols or symbol == "^NSEI"
+        if symbol in universe_symbols or symbol == "^CRSLDX"
     }
 
     # Step 3: Get ranked DataFrame (only on filtered universe)
