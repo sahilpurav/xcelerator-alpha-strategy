@@ -121,7 +121,8 @@ class BacktestEngine:
             price_data=price_data,
             as_of_date=date,
             total_capital=self.broker.cash,
-            ranked_df=ranked_df
+            ranked_df=ranked_df,
+            transaction_cost_pct=self.transaction_cost_pct
         )
         
         # Execute trades

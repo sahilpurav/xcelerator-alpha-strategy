@@ -10,7 +10,8 @@ def plan_initial_investment(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     total_capital: float,
-    ranked_df: pd.DataFrame
+    ranked_df: pd.DataFrame,
+    transaction_cost_pct: float = 0.001190
 ) -> pd.DataFrame:
     """
     Generates an execution plan for first-time investment in selected stocks.
@@ -22,7 +23,7 @@ def plan_initial_investment(
     - price_data: Dictionary mapping symbols to their historical price DataFrames
     - as_of_date: Timestamp representing the date for which prices are used
     - total_capital: Total capital to be deployed
-    - ranked_df: DataFrame containing stock rankings, including 'total_rank'
+    - transaction_cost_pct: Percentage of transaction cost per trade (default 0.119%)
 
     Returns:
     - DataFrame with execution plan containing columns:
@@ -53,8 +54,9 @@ def plan_initial_investment(
         if not price or price == 0:
             continue
 
-        # Check if we can buy at least 1 share with the per-stock allocation
-        if per_stock_alloc >= price:
+        # Check if we can buy at least 1 share with the per-stock allocation (including transaction costs)
+        effective_price = price * (1 + transaction_cost_pct)
+        if per_stock_alloc >= effective_price:
             purchasable_stocks.append(sym_clean)
 
     # Second pass: Redistribute total capital equally among purchasable stocks only
@@ -68,7 +70,9 @@ def plan_initial_investment(
             if not price or price == 0:
                 continue
 
-            qty = math.floor(adjusted_per_stock_alloc / price)
+            # Account for transaction costs in quantity calculation
+            effective_price = price * (1 + transaction_cost_pct)
+            qty = math.floor(adjusted_per_stock_alloc / effective_price)
             if qty == 0:
                 continue
 
