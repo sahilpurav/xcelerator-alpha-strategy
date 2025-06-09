@@ -21,3 +21,6 @@ onetimepass
 
 # Optimisations
 scipy
+
+# PDF Extraction tool
+PyPDF2
