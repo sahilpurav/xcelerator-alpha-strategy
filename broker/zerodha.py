@@ -1,12 +1,14 @@
 import os
 from kiteconnect import KiteConnect
 from dotenv import load_dotenv
-import typer
 import requests
 import re
 import onetimepass as otp
 from urllib.parse import urlparse, parse_qs
+import time
 
+OTP_INTERVAL = 30  # TOTP step interval, standard is 30 seconds
+EXPECTED_OTP_LENGTH = 6  # Standard TOTP length is usually 6 digits
 
 class ZerodhaBroker:
     def __init__(self):
@@ -182,26 +184,36 @@ class ZerodhaBroker:
             "user_id": credentials["username"],
             "password": credentials["password"],
         }
-        login_response = session.post("https://kite.zerodha.com/api/login", login_payload)
+        login_response = session.post("https://kite.zerodha.com/api/login", login_payload)        
 
-        # TOTP POST request
-        totp_payload = {
-            "user_id": credentials["username"],
-            "request_id": login_response.json()["data"]["request_id"],
-            "twofa_value": otp.get_totp(credentials["totp_key"]),
-            "twofa_type": "totp",
-            "skip_session": True,
-        }
-        totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
+        request_id = login_response.json()["data"]["request_id"]
+        time_windows = [-1, 0, 1] # check previous, current, and next time window
 
-        
-        if totp_response.status_code != 200:
-            # print("❌ Failed to login. Please check your credentials.")
-            raise RuntimeError(f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}")
-            typer.Exit(code=1)
-        
-        # print (totp_response)
-        # exit(0)
+        for window in time_windows:
+            fake_clock = int(time.time()) + window * OTP_INTERVAL
+            totp_value = otp.get_totp(credentials["totp_key"], clock=fake_clock, as_string=True)
+            if isinstance(totp_value, bytes):
+                totp_value = totp_value.decode("utf-8")
+
+            if not (isinstance(totp_value, str) and len(totp_value) == EXPECTED_OTP_LENGTH and totp_value.isdigit()):
+                raise ValueError(f"Invalid TOTP value: {totp_value}")
+            
+            totp_payload = {
+                "user_id": credentials["username"],
+                "request_id": request_id,
+                "twofa_value": totp_value,
+                "twofa_type": "totp",
+                "skip_session": True,
+            }
+            totp_response = session.post("https://kite.zerodha.com/api/twofa", data=totp_payload)
+            
+            if totp_response.status_code == 200:
+                break
+
+            if "Invalid TOTP" in totp_response.text:
+                continue
+
+            raise RuntimeError(f"❌ Authentication failed with status {totp_response.status_code}. Message: {totp_response.text}")
 
         # Extract request token from redirect URL
         try:
