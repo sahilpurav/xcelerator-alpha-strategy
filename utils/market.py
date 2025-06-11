@@ -1,5 +1,5 @@
 import pandas as pd
-from logic.indicators import calculate_dma
+from logic.indicators import calculate_ema
 
 def is_market_strong(benchmark_df: pd.DataFrame) -> bool:
     """
@@ -20,17 +20,17 @@ def is_market_strong(benchmark_df: pd.DataFrame) -> bool:
         return False
 
     latest_close = benchmark_df["Close"].iloc[-1]
-    dma_22 = calculate_dma(benchmark_df, 22)
-    dma_44 = calculate_dma(benchmark_df, 44)
-    dma_66 = calculate_dma(benchmark_df, 66)
+    ema_22 = calculate_ema(benchmark_df, 22)
+    ema_44 = calculate_ema(benchmark_df, 44)
+    ema_66 = calculate_ema(benchmark_df, 66)
 
-    if dma_22 is None or dma_44 is None or dma_66 is None:
+    if ema_22 is None or ema_44 is None or ema_66 is None:
         return False
 
     # Market is weak if price is below ALL three DMAs
-    is_weak = (latest_close < dma_22 and 
-               latest_close < dma_44 and 
-               latest_close < dma_66)
+    is_weak = (latest_close < ema_22 and 
+               latest_close < ema_44 and 
+               latest_close < ema_66)
     
     # Return True for strong market (not weak)
     return not is_weak

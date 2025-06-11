@@ -52,6 +52,18 @@ def calculate_dma(df: pd.DataFrame, period: int = 200) -> float:
 
     return df["Close"].rolling(window=period).mean().iloc[-1]
 
+def calculate_ema(df: pd.DataFrame, period: int = 200) -> float:
+    """
+    Calculates the n-day Exponential Moving Average (EMA) using 'Close' prices.
+
+    Returns:
+        float: EMA value or None if insufficient data
+    """
+    if df.shape[0] < period:
+        return None
+
+    return df["Close"].ewm(span=period, adjust=False).mean().iloc[-1]
+
 
 def calculate_high_proximity(df: pd.DataFrame, lookback: int = 252) -> float:
     """
