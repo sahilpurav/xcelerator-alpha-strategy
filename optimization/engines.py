@@ -32,14 +32,8 @@ class WeightedBacktestEngine(BacktestEngine):
         Override to use custom weights for ranking.
         This replaces the strategy.get_ranked_stocks function with weighted ranking.
         """
-        benchmark_df = price_data.get("^CRSLDX")
-        
-        if benchmark_df is None:
-            raise ValueError("Benchmark data (^CRSLDX) not found in price data.")
-
-        benchmark_df = benchmark_df[benchmark_df.index <= as_of_date]
-
-        if not is_market_strong(benchmark_df):
+        # Check both benchmark and market breadth conditions
+        if not is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date):
             return pd.DataFrame()
 
         # Apply ranking logic with custom weights

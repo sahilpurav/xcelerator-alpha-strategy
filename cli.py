@@ -306,13 +306,7 @@ def rank(
         print(f"📊 Loaded price data for {len(price_data)} symbols")
         
         # Check market regime
-        benchmark_df = price_data.get("^CRSLDX")
-        if benchmark_df is None:
-            print("❌ Benchmark data (^CRSLDX) not found")
-            raise typer.Exit(1)
-        
-        benchmark_df = benchmark_df[benchmark_df.index <= as_of_date]
-        market_strong = is_market_strong(benchmark_df)
+        market_strong = is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date)
         
         print(f"📈 Market regime on {date}: {'🟢 STRONG' if market_strong else '🔴 WEAK'}")
         

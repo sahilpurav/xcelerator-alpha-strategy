@@ -10,14 +10,8 @@ def get_ranked_stocks(price_data: dict[str, pd.DataFrame], as_of_date: pd.Timest
     - Returns top 15 picks as DataFrame
     - Returns empty DataFrame if market is weak
     """    
-    benchmark_df = price_data.get("^CRSLDX")
-    
-    if benchmark_df is None:
-        raise ValueError("Benchmark data (^CRSLDX) not found in price data.")
-
-    benchmark_df = benchmark_df[benchmark_df.index <= as_of_date]
-
-    if not is_market_strong(benchmark_df):
+    # Check both benchmark and market breadth conditions
+    if not is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date):
         return pd.DataFrame()
 
     # Apply ranking logic
