@@ -37,19 +37,19 @@ def apply_universe_filters(symbols: List[str], cache_dir: str = "cache/filters")
 
     if not os.path.exists(asm_file):
         try:
-            print("🟡 Trying MarketSmith ASM fetch...")
-            msi_scrape("asm", cache_dir)
-        except Exception as e:
-            print(f"🔴 MarketSmith ASM failed: {e}\n🔁 Falling back to NSE")
+            print("🟡 Trying NSE's official ASM fetch...")
             nse_scrape("asm", cache_dir)
+        except Exception as e:
+            print(f"🔴 NSE's official ASM failed: {e}\n🔁 Falling back to Marketsmith")
+            msi_scrape("asm", cache_dir)
     
     if not os.path.exists(gsm_file):
         try:
-            print("🟡 Trying MarketSmith GSM fetch...")
-            msi_scrape("gsm", cache_dir)
-        except Exception as e:
-            print(f"🔴 MarketSmith GSM failed: {e}\n🔁 Falling back to NSE")
+            print("🟡 Trying NSE's official GSM fetch...")
             nse_scrape("gsm", cache_dir)
+        except Exception as e:
+            print(f"🔴 NSE's official GSM failed: {e}\n🔁 Falling back to Marketsmith")
+            msi_scrape("gsm", cache_dir)
 
     excluded = set()
 
