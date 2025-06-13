@@ -44,7 +44,7 @@ def is_market_strong(price_data: dict[str, pd.DataFrame], benchmark_symbol: str 
                      latest_close < ema_66)
     
     if benchmark_weak:
-        print("Market is weak (benchmark below all EMAs), skipping ranking.")
+        print("⚠️ Market is weak (benchmark below all EMAs), skipping ranking.")
         return False
     
     # Check market breadth
@@ -54,7 +54,7 @@ def is_market_strong(price_data: dict[str, pd.DataFrame], benchmark_symbol: str 
         print(f"Market breadth is weak ({breadth_ratio:.2%} < {breadth_threshold:.0%}), skipping ranking.")
         return False
     
-    print(f"Market is strong: Benchmark above EMAs and breadth ratio is {breadth_ratio:.2%}.")
+    print(f"💪 Market is strong: Benchmark above EMAs and breadth ratio is {breadth_ratio:.2%}.")
     return True
 
 def _get_market_breadth_ratio(price_data: dict[str, pd.DataFrame], dma_period: int = 50, as_of_date: pd.Timestamp = None) -> float:

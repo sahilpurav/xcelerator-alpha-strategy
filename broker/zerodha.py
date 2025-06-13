@@ -5,6 +5,7 @@ import typer
 import requests
 import re
 import onetimepass as otp
+import time
 from urllib.parse import urlparse, parse_qs
 
 
@@ -183,6 +184,16 @@ class ZerodhaBroker:
             "password": credentials["password"],
         }
         login_response = session.post("https://kite.zerodha.com/api/login", login_payload)
+
+        # Calculate TOTP timing to avoid expiration
+        current_time = int(time.time())
+        time_window = current_time % 30  # Position within current 30-second window
+
+        # If we're in the last 5 seconds of the window, wait for the next window
+        if time_window > 25:
+            wait_time = 30 - time_window + 1  # Wait for next window + 1 second buffer
+            print(f"⏳ TOTP window expires in {30 - time_window} seconds, waiting {wait_time} seconds for fresh token...")
+            time.sleep(wait_time)
 
         # TOTP POST request
         totp_payload = {
