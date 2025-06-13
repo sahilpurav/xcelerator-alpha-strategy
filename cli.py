@@ -81,8 +81,9 @@ def positions(tsv: bool = False):
         positions,
         label_map={
             "symbol": ("Symbol", 12),
-            "quantity": ("Quantity", 10),
+            "action": ("Action", 10),
             "buy_price": ("Average Price", 20),
+            "quantity": ("Quantity", 10)
         },
         tsv=tsv
     )

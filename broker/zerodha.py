@@ -89,8 +89,9 @@ class ZerodhaBroker:
 
             rows.append({
                 "symbol": pos.get("tradingsymbol"),
-                "quantity": qty,
-                "buy_price": pos.get("average_price")
+                "action": "BUY" if qty > 0 else "SELL",
+                "buy_price": pos.get("average_price"),
+                "quantity": qty
             })
 
         return rows
