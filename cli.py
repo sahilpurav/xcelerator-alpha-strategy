@@ -1,9 +1,9 @@
 import typer
-import shutil
 import os
 from typing import Optional, List
 from execution.live import run_initial_investment, run_rebalance, run_topup_only
 from execution.backtest import run_backtest
+from execution.maintenance import run_clear_cache
 from broker.zerodha import ZerodhaBroker
 from logic.display import display_portfolio_table
 from optimization import WeightOptimizer
@@ -11,27 +11,10 @@ from optimization.utils import parse_weights_string, generate_test_combinations,
 from datetime import datetime
 import pandas as pd
 from data.universe_fetcher import get_universe_symbols
-from logic.filters import apply_universe_filters
 from data.price_fetcher import download_and_cache_prices, is_cache_stale_or_missing
-from logic.strategy import get_ranked_stocks
 from utils.market import is_market_strong
 
 app = typer.Typer()
-
-@app.command()
-def clear_cache():
-    """
-    Delete all cached files and reset the strategy state.
-    This will remove all cached price data and reset the strategy state.
-    """
-    if os.path.exists("cache"):
-        shutil.rmtree("cache")
-        print("🗑️ Removed 'cache' folder.")
-    if os.path.exists("output"):
-        shutil.rmtree("output")
-        print("🗑️ Removed 'output' folder.")
-    else:
-        print("✅ Nothing to delete.")
 
 @app.command()
 def initial(
@@ -52,6 +35,14 @@ def rebalance(preview: bool = False, band: int = 5):
 def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"), preview: bool = False):
     """Top up capital in current holdings only"""
     run_topup_only(amount, preview=preview)
+
+@app.command()
+def clear():
+    """
+    Delete all cached files and reset the strategy state.
+    This will remove all cached price data and reset the strategy state.
+    """
+    run_clear_cache()
 
 @app.command()
 def holdings(tsv: bool = False):
