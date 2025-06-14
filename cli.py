@@ -5,8 +5,7 @@ from execution.live import run_initial_investment, run_rebalance, run_topup_only
 from execution.backtest import run_backtest
 from execution.maintenance import run_clear_cache
 from execution.portfolio import run_holdings_display, run_positions_display
-from optimization import WeightOptimizer
-from optimization.utils import parse_weights_string, generate_test_combinations, save_optimization_results
+from execution.optimization import run_optimize_weights, run_compare_weights
 from datetime import datetime
 import pandas as pd
 from data.universe_fetcher import get_universe_symbols
@@ -83,40 +82,16 @@ def optimize_weights(
         python cli.py optimize-weights --start 2020-01-01 --method scipy --max-dd -20
     """
     
-    # Set end date to today if not provided
-    if end is None:
-        end = datetime.now().strftime("%Y-%m-%d")
-    
-    # Validate method
-    if method not in ["grid", "scipy"]:
-        print("❌ Error: method must be 'grid' or 'scipy'")
-        raise typer.Exit(1)
-    
-    # Create optimizer
-    optimizer = WeightOptimizer(
-        start_date=start,
-        end_date=end,
-        max_drawdown_threshold=max_dd,
+    run_optimize_weights(
+        start=start,
+        end=end,
+        method=method,
+        step=step,
+        max_dd=max_dd,
         top_n=top_n,
-        band=band
+        band=band,
+        save_results=save_results
     )
-    
-    try:
-        print(f"🚀 Starting {method} optimization...")
-        
-        if method == "grid":
-            results = optimizer.grid_search(weight_step=step, verbose=True)
-        else:  # scipy
-            results = optimizer.scipy_optimize(verbose=True)
-        
-        # Save results if requested
-        if save_results and results.get('all_results') is not None:
-            filename = f"weight_optimization_{method}_{start}_{end}.csv"
-            save_optimization_results(results, filename)
-        
-    except Exception as e:
-        print(f"❌ Optimization failed: {e}")
-        raise typer.Exit(1)
 
 
 @app.command()
@@ -138,58 +113,16 @@ def compare_weights(
         python cli.py compare-weights "0.5,0.3,0.2" --start 2020-01-01 --include-common
     """
     
-    # Set end date to today if not provided
-    if end is None:
-        end = datetime.now().strftime("%Y-%m-%d")
-    
-    # Parse weight combinations
-    weight_combinations = []
-    
-    try:
-        for weight_str in weights:
-            parsed_weights = parse_weights_string(weight_str)
-            weight_combinations.append(parsed_weights)
-    except ValueError as e:
-        print(f"❌ Error parsing weights: {e}")
-        print("💡 Example format: '0.8,0.1,0.1' (must sum to 1.0)")
-        raise typer.Exit(1)
-    
-    # Add common test combinations if requested
-    if include_common:
-        common_combinations = generate_test_combinations()
-        # Remove duplicates
-        for combo in common_combinations:
-            if combo not in weight_combinations:
-                weight_combinations.append(combo)
-    
-    # Create optimizer
-    optimizer = WeightOptimizer(
-        start_date=start,
-        end_date=end,
-        max_drawdown_threshold=max_dd,
+    run_compare_weights(
+        weights=weights,
+        start=start,
+        end=end,
+        max_dd=max_dd,
         top_n=top_n,
-        band=band
+        band=band,
+        include_common=include_common,
+        save_results=save_results
     )
-    
-    try:
-        results_df = optimizer.compare_combinations(weight_combinations)
-        
-        # Save results if requested
-        if save_results and not results_df.empty:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"weight_comparison_{start}_{end}_{timestamp}.csv"
-            
-            # Ensure output directory exists
-            if not os.path.exists("output"):
-                os.makedirs("output")
-            
-            filepath = os.path.join("output", filename)
-            results_df.to_csv(filepath, index=False)
-            print(f"📁 Results saved to: {filepath}")
-        
-    except Exception as e:
-        print(f"❌ Comparison failed: {e}")
-        raise typer.Exit(1)
 
 @app.command()
 def rank(
