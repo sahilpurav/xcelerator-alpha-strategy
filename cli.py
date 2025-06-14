@@ -4,8 +4,7 @@ from typing import Optional, List
 from execution.live import run_initial_investment, run_rebalance, run_topup_only
 from execution.backtest import run_backtest
 from execution.maintenance import run_clear_cache
-from broker.zerodha import ZerodhaBroker
-from logic.display import display_portfolio_table
+from execution.portfolio import run_holdings_display, run_positions_display
 from optimization import WeightOptimizer
 from optimization.utils import parse_weights_string, generate_test_combinations, save_optimization_results
 from datetime import datetime
@@ -21,9 +20,7 @@ def initial(
     top_n: int = typer.Option(15, prompt="📊 Enter number of stocks to invest in (top_n)"),
     amount: float = typer.Option(..., prompt="💰 Enter the total capital to invest (amount in ₹)")
 ):
-    """
-    Run initial investment interactively with prompts.
-    """
+    """Run initial investment interactively with prompts."""
     run_initial_investment(top_n=top_n, amount=amount)
 
 @app.command()
@@ -37,47 +34,20 @@ def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital
     run_topup_only(amount, preview=preview)
 
 @app.command()
-def clear():
-    """
-    Delete all cached files and reset the strategy state.
-    This will remove all cached price data and reset the strategy state.
-    """
+def clean():
+    """Delete all cached files and reset the strategy state."""
     run_clear_cache()
 
 @app.command()
 def holdings(tsv: bool = False):
     """Display current holdings and their details."""
-    broker = ZerodhaBroker()
-    portfolio = broker.get_holdings()
-
-    display_portfolio_table(
-        portfolio,
-        label_map={
-            "symbol": ("Symbol", 12),
-            "quantity": ("Quantity", 10),
-            "buy_price": ("Average Price", 20),
-            "last_price": ("Close Price", 20),
-        },
-        tsv=tsv
-    )
+    run_holdings_display(tsv=tsv)
 
     
 @app.command()
 def positions(tsv: bool = False):
     """Display current positions and their details."""
-    broker = ZerodhaBroker()
-    positions = broker.get_current_positions()
-
-    display_portfolio_table(
-        positions,
-        label_map={
-            "symbol": ("Symbol", 12),
-            "action": ("Action", 10),
-            "buy_price": ("Average Price", 20),
-            "quantity": ("Quantity", 10)
-        },
-        tsv=tsv
-    )
+    run_positions_display(tsv=tsv)
 
 
 @app.command()
@@ -87,15 +57,7 @@ def backtest(
         rebalance_day: str = typer.Option("Wednesday", help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)"),
         band: int = typer.Option(5, help="Band size for portfolio stability (higher = less churn)")
 ):
-    """
-    Run the backtest for Xcelerator Alpha Strategy.
-
-    Args:
-        start (str): Start date in YYYY-MM-DD format.
-        end (str): End date in YYYY-MM-DD format.
-        rebalance_day (str): Day of week for rebalancing.
-        band (int): Band size for portfolio stability (default 5).
-    """
+    """Run the backtest for Xcelerator Alpha Strategy."""
     run_backtest(start, end, rebalance_day, band)
 
 
