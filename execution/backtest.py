@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 from broker.backtest import BacktestBroker
 from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices
-from logic.strategy import get_ranked_stocks, generate_band_adjusted_portfolio
+from logic.strategy import run_strategy
 from logic.planner import plan_initial_investment, plan_rebalance_investment, plan_exit_all_positions
 from utils.date import get_last_trading_day
 
@@ -105,8 +105,8 @@ class BacktestEngine:
         Returns:
             Tuple of (success, execution_df)
         """
-        # Get ranked stocks
-        ranked_df = get_ranked_stocks(price_data, date)
+        # Run strategy to get ranked stocks
+        _, _, _, _, ranked_df = run_strategy(price_data, date, [], self.top_n)
         
         if ranked_df.empty:
             return False, pd.DataFrame()
@@ -143,10 +143,17 @@ class BacktestEngine:
         if not held_symbols:
             return False, pd.DataFrame()
         
-        # Get ranked stocks
-        ranked_df = get_ranked_stocks(price_data, date)
+        # Run strategy to determine portfolio changes and get ranked data
+        held, new_entries, removed, _, ranked_df = run_strategy(
+            price_data,
+            date,
+            held_symbols,
+            self.top_n,
+            self.band
+        )
         
-        if ranked_df.empty:
+        # Check if we need to exit all positions (weak market)
+        if not held and not new_entries and removed == held_symbols:
             # Plan complete exit
             exec_df = plan_exit_all_positions(
                 previous_holdings=previous_holdings,
@@ -159,14 +166,6 @@ class BacktestEngine:
             if not exec_df.empty:
                 self._execute_backtest_orders(exec_df, date, price_data)
             return False, exec_df
-        
-        # Determine portfolio changes using band logic
-        held, new_entries, removed, _ = generate_band_adjusted_portfolio(
-            ranked_df,
-            held_symbols,
-            self.top_n,
-            self.band
-        )
         
         if not new_entries and not removed:
             return True, pd.DataFrame()

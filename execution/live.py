@@ -7,7 +7,7 @@ from logic.filters import apply_universe_filters
 from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
 from utils.date import get_last_trading_day
-from logic.strategy import get_ranked_stocks, generate_band_adjusted_portfolio
+from logic.strategy import run_strategy
 from logic.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 from logic.display import display_execution_plan
 from broker.zerodha import ZerodhaBroker
@@ -82,7 +82,13 @@ def run_initial_investment(top_n: int, amount: float):
     symbols = [f"{s}.NS" for s in universe] + ["^CRSLDX"]
     price_data = _get_latest_prices(symbols, as_of_date)
 
-    ranked_df = get_ranked_stocks(price_data, as_of_date)
+    # Run strategy to get ranked stocks
+    _, _, _, _, ranked_df = run_strategy(price_data, as_of_date, [], top_n)
+    
+    if ranked_df.empty:
+        print("⚠️ Market conditions are weak. Cannot proceed with initial investment.")
+        return
+    
     top_n_df = ranked_df.nsmallest(top_n, "total_rank")
     selected = top_n_df["symbol"].tolist()
 
@@ -169,19 +175,19 @@ def run_rebalance(preview: bool = False, band: int = 5):
         if symbol in universe_symbols or symbol == "^CRSLDX"
     }
 
-    # Step 3: Get ranked DataFrame (only on filtered universe)
-    ranked_df = get_ranked_stocks(price_data_for_ranking, as_of_date)
-    
-    # Store ranked DataFrame in output for reference
-    os.makedirs("output", exist_ok=True)
-    ranked_df.to_csv(f"output/ranked-stocks-{get_last_trading_day()}.csv", index=False)
-
-    held, new_entries, removed, _ = generate_band_adjusted_portfolio(
-        ranked_df,
+    # Step 3: Run strategy to get portfolio adjustments and ranked data
+    held, new_entries, removed, _, ranked_df = run_strategy(
+        price_data_for_ranking,
+        as_of_date,
         held_symbols,
         top_n,
         band
     )
+
+    # Store ranked DataFrame in output for reference
+    if not ranked_df.empty:
+        os.makedirs("output", exist_ok=True)
+        ranked_df.to_csv(f"output/ranked-stocks-{get_last_trading_day()}.csv", index=False)
 
     # Step 6: Generate final execution plan
     exec_df = plan_rebalance_investment(

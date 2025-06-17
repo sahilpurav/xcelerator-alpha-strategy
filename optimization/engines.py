@@ -7,7 +7,6 @@ from typing import Tuple, Dict, List
 from execution.backtest import BacktestEngine
 from logic.ranking import rank
 from logic.planner import plan_initial_investment, plan_rebalance_investment, plan_exit_all_positions
-from logic.strategy import generate_band_adjusted_portfolio
 from utils.market import is_market_strong
 
 
@@ -27,27 +26,53 @@ class WeightedBacktestEngine(BacktestEngine):
         super().__init__(**kwargs)
         self.weights = weights
     
-    def get_ranked_stocks(self, price_data: Dict[str, pd.DataFrame], as_of_date: pd.Timestamp) -> pd.DataFrame:
+    def run_strategy(self, price_data: Dict[str, pd.DataFrame], as_of_date: pd.Timestamp, 
+                    held_symbols: List[str], top_n: int, band: int) -> Tuple[List[str], List[str], List[str], List[str], pd.DataFrame]:
         """
-        Override to use custom weights for ranking.
-        This replaces the strategy.get_ranked_stocks function with weighted ranking.
+        Custom run_strategy that uses weighted ranking.
+        Complete strategy execution: market filter + ranking + portfolio construction.
         """
-        # Check both benchmark and market breadth conditions
+        # Step 1: Check market strength
         if not is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date):
-            return pd.DataFrame()
+            return [], [], held_symbols, [], pd.DataFrame()  # Exit all positions in weak market
 
-        # Apply ranking logic with custom weights
-        ranked = rank(price_data, as_of_date, weights=self.weights)
+        # Step 2: Rank stocks with custom weights
+        ranked_df = rank(price_data, as_of_date, weights=self.weights)
+        ranked_df["rank"] = ranked_df["total_rank"].rank(method="first").astype(int)
+        
+        # Step 3: Apply band logic for portfolio construction
+        ranked_df_work = ranked_df.reset_index(drop=True)
+        ranked_df_work["rank"] = ranked_df_work.index + 1
+        ranked_df_work["symbol"] = ranked_df_work["symbol"].str.replace(".NS", "", regex=False)
+        symbols_ranked = ranked_df_work["symbol"].tolist()
 
-        ranked["rank"] = ranked["total_rank"].rank(method="first").astype(int)
-        return ranked  # return full list
+        held_stocks = []
+        removed_stocks = []
+
+        # Check which held stocks to keep or remove
+        for sym in held_symbols:
+            if sym in symbols_ranked:
+                rank_pos = ranked_df_work.loc[ranked_df_work["symbol"] == sym, "rank"].values[0]
+                if rank_pos <= top_n + band:
+                    held_stocks.append(sym)
+                else:
+                    removed_stocks.append(sym)
+            else:
+                removed_stocks.append(sym)
+
+        # Determine new entries
+        top_n_symbols = ranked_df_work.head(top_n)["symbol"].tolist()
+        new_entries = [s for s in top_n_symbols if s not in held_stocks][: top_n - len(held_stocks)]
+        final_portfolio = held_stocks + new_entries
+
+        return held_stocks, new_entries, removed_stocks, final_portfolio, ranked_df
     
     def execute_initial_investment(self, date: pd.Timestamp, price_data: Dict[str, pd.DataFrame]) -> Tuple[bool, pd.DataFrame]:
         """
         Execute initial investment using custom weighted ranking.
         """
-        # Get ranked stocks using custom weights
-        ranked_df = self.get_ranked_stocks(price_data, date)
+        # Run strategy to get ranked stocks using custom weights
+        _, _, _, _, ranked_df = self.run_strategy(price_data, date, [], self.top_n, self.band)
         
         if ranked_df.empty:
             return False, pd.DataFrame()
@@ -81,10 +106,17 @@ class WeightedBacktestEngine(BacktestEngine):
         if not held_symbols:
             return False, pd.DataFrame()
         
-        # Get ranked stocks using custom weights
-        ranked_df = self.get_ranked_stocks(price_data, date)
+        # Run strategy to determine portfolio changes using custom weights
+        held, new_entries, removed, _, ranked_df = self.run_strategy(
+            price_data,
+            date,
+            held_symbols,
+            self.top_n,
+            self.band
+        )
         
-        if ranked_df.empty:
+        # Check if we need to exit all positions (weak market)
+        if not held and not new_entries and removed == held_symbols:
             # Plan complete exit
             exec_df = plan_exit_all_positions(
                 previous_holdings=previous_holdings,
@@ -98,17 +130,9 @@ class WeightedBacktestEngine(BacktestEngine):
                 self._execute_backtest_orders(exec_df, date, price_data)
             return False, exec_df
         
-        # Determine portfolio changes using band logic
-        held, new_entries, removed, _ = generate_band_adjusted_portfolio(
-            ranked_df,
-            held_symbols,
-            self.top_n,
-            self.band
-        )
-        
         if not new_entries and not removed:
             return True, pd.DataFrame()
-        
+
         # Generate execution plan
         exec_df = plan_rebalance_investment(
             held_stocks=held,
