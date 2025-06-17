@@ -11,6 +11,7 @@ from logic.strategy import get_ranked_stocks, generate_band_adjusted_portfolio
 from logic.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 from logic.display import display_execution_plan
 from broker.zerodha import ZerodhaBroker
+from utils.notification import send_whatsapp_message
 
 def _get_filtered_universe() -> list[str]:
     """
@@ -135,6 +136,12 @@ def run_rebalance(preview: bool = False, band: int = 5):
     Automatically uses the number of current holdings as top_n.
     Sells stocks outside band, buys new entries using freed capital only.
     """
+    
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    is_twilio_enabled = os.getenv("ENABLE_TWILIO_WHATSAPP", "false").strip().lower() == "true"
+
     as_of_date = pd.to_datetime(get_last_trading_day())
     print(f"\n🔄 Running weekly rebalance strategy as of {as_of_date.date()}...")
 
@@ -186,7 +193,14 @@ def run_rebalance(preview: bool = False, band: int = 5):
         as_of_date=as_of_date,
         ranked_df=ranked_df
     )
-
+    
+    if(is_twilio_enabled):
+        # Step 8: Send WhatsApp message with execution plan
+        print("📱 Sending WhatsApp message with execution plan..."  )
+        send_whatsapp_message(exec_df)
+    else:
+        print("📱 WhatsApp notifications are disabled. Set ENABLE_TWILIO_WHATSAPP to true to enable.")
+    
     # Step 7: Display and confirm execution
     display_execution_plan(exec_df, "rebalance")
 
