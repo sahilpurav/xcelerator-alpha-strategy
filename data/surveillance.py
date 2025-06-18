@@ -7,13 +7,13 @@ def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
     """
     Fetches red flag data (ASM or GSM) from the NSE website and caches it.
     Args:
-        measure (str): Type of red flag data to fetch ("asm" or "gsm").
+        measure (str): Type of red flag data to fetch ("asm", "gsm" or "esm").
         cache_dir (str): Directory to cache the fetched data.
     Returns:
         list: Parsed JSON data from the response, or None if an error occurs.
     """
-    if measure not in ["asm", "gsm"]:
-        raise ValueError("Invalid measure type. Use 'asm' or 'gsm'.")
+    if measure not in ["asm", "gsm", "esm"]:
+        raise ValueError("Invalid measure type. Use 'asm', 'gsm' or 'esm'.")
 
     last_trading_date = get_last_trading_day()
     output_file = f"{cache_dir}/{measure}-{last_trading_date}.json"
@@ -69,4 +69,11 @@ def get_excluded_gsm_symbols() -> set:
     Extracts symbols from GSM data that are to be excluded.
     """
     gsm_data = _fetch_red_flags("gsm")
+    return {item["symbol"].strip() for item in gsm_data if "symbol" in item}
+
+def get_excluded_esm_symbols() -> set:
+    """
+    Extracts symbols from ESM data that are to be excluded.
+    """
+    gsm_data = _fetch_red_flags("esm")
     return {item["symbol"].strip() for item in gsm_data if "symbol" in item}
