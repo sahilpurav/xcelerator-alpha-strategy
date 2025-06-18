@@ -147,13 +147,5 @@ def rank(
         force_refresh=force_refresh
     )
 
-@app.command()
-def notify_twilio(tsv: bool = False):
-    """Display current holdings and their details."""
-    rebalace_text = run_rebalance(preview=True, band=5)
-    print (rebalace_text)
-
-
-
 if __name__ == "__main__":
     app()
