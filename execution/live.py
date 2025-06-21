@@ -6,7 +6,7 @@ from data.universe_fetcher import get_universe_symbols
 from logic.filters import apply_universe_filters
 from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
-from utils.date import get_last_trading_day
+from utils.market import get_last_trading_day
 from logic.strategy import run_strategy
 from logic.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 from logic.display import display_execution_plan
@@ -32,12 +32,9 @@ def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool 
     Executes the given execution plan using the broker API.
     SELLs are executed first, followed by BUYs.
     """
-
-    # Ask for confirmation
-    if not typer.confirm("⚠️ Do you want to proceed with live order execution?"):
-        print("❎ Skipped live order execution.")
-        return
-
+    print("-" * 65)
+    print("📋 Order Summary")
+    print("-" * 65)
     for action in ["SELL", "BUY"]:
         df_action = exec_df.query(f"Action == '{action}'")
         for _, row in df_action.iterrows():

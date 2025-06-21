@@ -2,7 +2,7 @@ import os
 import json
 import time
 import undetected_chromedriver as uc
-from utils.date import get_last_trading_day
+from utils.market import get_last_trading_day
 
 def scrape(measure: str, cache_dir: str = "cache/filters") -> None:
     """

@@ -1,18 +1,9 @@
 from twilio.rest import Client
-from dotenv import load_dotenv
+from config import Config
 import os
 
-
-load_dotenv()
-
-account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-whatsapp_to = os.getenv("TWILIO_WHATSAPP_TO")
-is_twilio_enabled = os.getenv("ENABLE_TWILIO_WHATSAPP", "false").strip().lower() == "true"
-
-
-client = Client(account_sid, auth_token)
+# Use centralized configuration
+client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
 def send_whatsapp_message(message_body=None, type='portfolio'):
     """Send a WhatsApp message via Twilio.
@@ -33,12 +24,12 @@ def send_whatsapp_message(message_body=None, type='portfolio'):
     # print (type(message_body))
     # print(f"📱 Sending WhatsApp message: {message_body}")
 
-    if(is_twilio_enabled):
+    if(Config.ENABLE_TWILIO_WHATSAPP):
         # print(f"📱 Sending WhatsApp message: {message_body}")
         message = client.messages.create(
             body=message_body,
-            from_=whatsapp_from,
-            to=whatsapp_to
+            from_=Config.TWILIO_WHATSAPP_FROM,
+            to=Config.TWILIO_WHATSAPP_TO
         )
         return message.sid
 

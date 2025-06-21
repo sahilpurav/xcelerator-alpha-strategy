@@ -1,6 +1,6 @@
 import os
 from kiteconnect import KiteConnect
-from dotenv import load_dotenv
+from config import Config
 import typer
 import requests
 import re
@@ -11,12 +11,11 @@ from urllib.parse import urlparse, parse_qs
 
 class ZerodhaBroker:
     def __init__(self):
-        load_dotenv()
-        self.api_key = os.getenv("KITE_APP_KEY")
-        self.api_secret = os.getenv("KITE_APP_SECRET")
-        self.app_user_name = os.getenv("KITE_APP_USERNAME")
-        self.app_password = os.getenv("KITE_APP_PASSWORD")
-        self.app_totp_key = os.getenv("KITE_APP_TOTP_KEY")
+        self.api_key = Config.KITE_APP_KEY
+        self.api_secret = Config.KITE_APP_SECRET
+        self.app_user_name = Config.KITE_APP_USERNAME
+        self.app_password = Config.KITE_APP_PASSWORD
+        self.app_totp_key = Config.KITE_APP_TOTP_KEY
         self.token_file = os.path.join("cache/secrets", "zerodha_access_token.txt")
         self.kite = KiteConnect(api_key=self.api_key)
         

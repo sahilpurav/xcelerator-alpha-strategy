@@ -8,7 +8,7 @@ from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices
 from logic.strategy import run_strategy
 from logic.planner import plan_initial_investment, plan_rebalance_investment, plan_exit_all_positions
-from utils.date import get_last_trading_day
+from utils.market import get_last_trading_day
 
 class BacktestEngine:
     """

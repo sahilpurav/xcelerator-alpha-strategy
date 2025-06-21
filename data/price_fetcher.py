@@ -3,8 +3,8 @@ import pandas as pd
 import yfinance as yf
 from typing import Optional
 from datetime import datetime
-from utils.date import is_market_open_now
-from utils.date import get_last_trading_day
+from utils.market import is_market_open_now
+from utils.market import get_last_trading_day
 
 def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: str = "cache/prices") -> bool:
     """

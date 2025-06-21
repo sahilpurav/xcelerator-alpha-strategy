@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from utils.date import get_last_trading_day
+from utils.market import get_last_trading_day
 
 # MarketSmith India API endpoints
 ASM_LONGTERM_URL = "https://marketsmithindia.com/gateway/simple-api/ms-india/lists/getASMList.json?type=1&ms-auth=3990+MarketSmithINDUID-Web0000000000+MarketSmithINDUID-Web0000000000+0+250605180633+-2034648918"

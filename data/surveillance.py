@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from utils.date import get_last_trading_day
+from utils.market import get_last_trading_day
 
 def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
     """
