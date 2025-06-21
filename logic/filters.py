@@ -1,5 +1,5 @@
 from typing import List
-from data.surveillance import get_excluded_asm_symbols, get_excluded_gsm_symbols, get_excluded_esm_symbols
+from data.surveillance_fetcher import get_excluded_asm_symbols, get_excluded_gsm_symbols, get_excluded_esm_symbols
 import time
 
 def apply_universe_filters(symbols: List[str]) -> List[str]:
