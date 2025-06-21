@@ -154,7 +154,18 @@ class ZerodhaBroker:
                 }
 
         return list(holdings.values())
-
+    
+    def cash(self):
+        """
+        Fetches current cash balance from Zerodha and returns
+        a dict with available, used, and total cash.
+        """
+        try:
+            margins = self.kite.margins("equity")
+            return margins["available"]["cash"]
+        except Exception as e:
+            print(f"❌ Failed to fetch available funds: {e}")
+            return None
 
     def place_market_order(self, symbol, quantity, exchange="NSE", transaction_type="BUY"):
         try:

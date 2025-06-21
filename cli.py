@@ -17,9 +17,9 @@ def initial(
     run_initial_investment(top_n=top_n, amount=amount)
 
 @app.command()
-def rebalance(preview: bool = False, band: int = 5):
+def rebalance(top_n: int = 15, band: int = 5, dry_run: bool = False):
     """Run weekly rebalance with optional fresh capital"""
-    run_rebalance(preview=preview, band=band)
+    run_rebalance(top_n=top_n, band=band, dry_run=dry_run)
 
 @app.command()
 def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"), preview: bool = False):

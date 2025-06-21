@@ -11,7 +11,6 @@ from logic.strategy import run_strategy
 from logic.planner import plan_rebalance_investment, plan_initial_investment, plan_top_up_investment
 from logic.display import display_execution_plan
 from broker.zerodha import ZerodhaBroker
-from utils.notification import send_whatsapp_message
 
 def _get_filtered_universe() -> list[str]:
     """
@@ -38,8 +37,6 @@ def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool 
     if not typer.confirm("⚠️ Do you want to proceed with live order execution?"):
         print("❎ Skipped live order execution.")
         return
-    
-    print("\n📡 Placing live orders via broker...")
 
     for action in ["SELL", "BUY"]:
         df_action = exec_df.query(f"Action == '{action}'")
@@ -52,6 +49,7 @@ def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool 
             print(f"{'🔻' if action == 'SELL' else '🔺'} {action} {symbol}: Qty = {quantity}")
             if not dry_run:
                 try:
+                    print("\n📡 Placing live orders via broker...")
                     broker.place_market_order(symbol, quantity, transaction_type=action)
                     time.sleep(1)  # Avoid hitting API rate limits
                 except Exception as e:
@@ -136,18 +134,12 @@ def run_topup_only(amount: float, preview = False):
     if not preview:
         _execute_orders(exec_df, broker)
 
-def run_rebalance(preview: bool = False, band: int = 5):
+def run_rebalance(top_n: int = 15, band: int = 5, dry_run: bool = False):
     """
     Runs the weekly rebalance for Xcelerator Alpha Strategy.
     Automatically uses the number of current holdings as top_n.
     Sells stocks outside band, buys new entries using freed capital only.
     """
-    
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    is_twilio_enabled = os.getenv("ENABLE_TWILIO_WHATSAPP", "false").strip().lower() == "true"
-
     as_of_date = pd.to_datetime(get_last_trading_day())
     print(f"\n🔄 Running weekly rebalance strategy as of {as_of_date.date()}...")
 
@@ -158,8 +150,6 @@ def run_rebalance(preview: bool = False, band: int = 5):
     if not held_symbols:
         print("⚠️ No current holdings found. Use `initial` command to deploy first.")
         return
-
-    top_n = len(held_symbols)
 
     # Step 1: Get universe (filtered) and symbols for ranking
     universe = _get_filtered_universe()
@@ -200,16 +190,8 @@ def run_rebalance(preview: bool = False, band: int = 5):
         ranked_df=ranked_df
     )
     
-    if(is_twilio_enabled):
-        # Step 8: Send WhatsApp message with execution plan
-        print("📱 Sending WhatsApp message with execution plan..."  )
-        send_whatsapp_message(exec_df)
-    else:
-        print("📱 WhatsApp notifications are disabled. Set ENABLE_TWILIO_WHATSAPP to true to enable.")
-    
     # Step 7: Display and confirm execution
     display_execution_plan(exec_df, "rebalance")
 
-    if not preview:
-        _execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker, dry_run=dry_run)
 

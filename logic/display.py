@@ -1,4 +1,7 @@
 import pandas as pd
+import os
+from dotenv import load_dotenv
+from utils.notification import send_whatsapp_message
 
 def display_portfolio_table(data: list[dict], label_map: dict, tsv: bool = False):
     """
@@ -52,7 +55,6 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str):
         exec_df (pd.DataFrame): DataFrame containing execution plan details
         type (str): Type of execution plan - 'rebalance', 'initial', or 'top-up'
     """
-    # Set title based on type
     title_map = {
         'rebalance': '🔄 Portfolio Rebalancing Plan',
         'initial': '🎯 Initial Investment Plan',
@@ -93,3 +95,9 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str):
         
     elif type == 'top-up':
         print(f"💰 Total Top-up Allocation  : ₹{buy_amount:,.2f}")
+
+    load_dotenv()
+    is_twilio_enabled = os.getenv("ENABLE_TWILIO_WHATSAPP", "false").strip().lower() == "true"
+    if(is_twilio_enabled):
+        print("📱 Sending notification on WhatsApp...")
+        send_whatsapp_message(exec_df)
