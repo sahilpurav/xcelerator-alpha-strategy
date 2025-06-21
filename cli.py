@@ -11,20 +11,23 @@ app = typer.Typer()
 @app.command()
 def initial(
     top_n: int = typer.Option(15, prompt="📊 Enter number of stocks to invest in (top_n)"),
-    amount: float = typer.Option(..., prompt="💰 Enter the total capital to invest (amount in ₹)")
+    amount: float = typer.Option(..., prompt="💰 Enter the total capital to invest (amount in ₹)"),
+    dry_run: bool = typer.Option(False, help="If True, simulates the execution without placing live orders.")
 ):
     """Run initial investment interactively with prompts."""
-    run_initial_investment(top_n=top_n, amount=amount)
-
+    run_initial_investment(top_n=top_n, amount=amount, dry_run=dry_run)
 @app.command()
 def rebalance(top_n: int = 15, band: int = 5, dry_run: bool = False):
     """Run weekly rebalance with optional fresh capital"""
     run_rebalance(top_n=top_n, band=band, dry_run=dry_run)
 
 @app.command()
-def topup(amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"), preview: bool = False):
+def topup(
+    amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"),
+    dry_run: bool = typer.Option(False, help="If True, simulates the execution without placing live orders.")
+):
     """Top up capital in current holdings only"""
-    run_topup_only(amount, preview=preview)
+    run_topup_only(amount, dry_run)
 
 @app.command()
 def clean():

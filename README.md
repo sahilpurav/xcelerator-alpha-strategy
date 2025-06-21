@@ -11,7 +11,7 @@ This strategy selects high-momentum stocks from the Nifty 500 universe and manag
 - ✅ Fully live trading using Zerodha Kite Connect
 - ✅ ASM/GSM filtering (long-term and Stage II exclusions)
 - ✅ Intelligent capital recycling (no partial sells, top-up underweight winners)
-- ✅ Dry run and confirmation mode before live orders
+- ✅ **Dry run mode** for all trading commands (simulation without live orders)
 - ✅ Normalized ranks for clear comparison
 - ✅ **Weight optimization** for ranking algorithm parameters
 - ✅ **Complete CLI interface** for all trading operations
@@ -24,10 +24,19 @@ The strategy provides a comprehensive command-line interface for all operations:
 
 ### 📈 Live Trading Commands
 
+All live trading commands support **dry run mode** using the `--dry-run` flag, which simulates the execution without placing actual orders. This is essential for testing and validation before committing real capital.
+
 #### Initial Investment
 Start your portfolio with fresh capital:
 ```bash
+# Interactive mode with prompts
+python cli.py initial
+
+# Direct parameter specification
 python cli.py initial --amount 100000 --top-n 15
+
+# Dry run mode (simulation without live orders)
+python cli.py initial --amount 100000 --top-n 15 --dry-run
 ```
 
 #### Weekly Rebalance  
@@ -36,17 +45,21 @@ Execute the core momentum strategy rebalancing:
 # Standard rebalance
 python cli.py rebalance
 
-# Preview mode (dry run)
-python cli.py rebalance --preview
+# Dry run mode (simulation without live orders)
+python cli.py rebalance --dry-run
 
-# Custom band size (higher = less portfolio churn)
-python cli.py rebalance --band 7
+# Custom parameters
+python cli.py rebalance --top-n 20 --band 7 --dry-run
 ```
 
 #### Capital Top-up
 Add more capital to existing positions:
 ```bash
-python cli.py topup --amount 50000 --preview
+# Interactive mode with prompts
+python cli.py topup
+
+# Direct parameter specification with dry run
+python cli.py topup --amount 50000 --dry-run
 ```
 
 ### 📊 Portfolio Monitoring
@@ -96,22 +109,57 @@ python cli.py rank --date 2024-06-05 --force-refresh
 #### Cache Management
 Reset cached data and strategy state:
 ```bash
-python cli.py clear-cache
+python cli.py clean
 ```
 
 ### 📋 CLI Parameters Reference
 
 | Command | Key Parameters | Description |
 |---------|----------------|-------------|
-| `initial` | `--amount`, `--top-n` | Start portfolio with fresh capital |
-| `rebalance` | `--preview`, `--band` | Weekly momentum rebalancing |
-| `topup` | `--amount`, `--preview` | Add capital to existing positions |
+| `initial` | `--amount`, `--top-n`, `--dry-run` | Start portfolio with fresh capital (interactive prompts) |
+| `rebalance` | `--top-n`, `--band`, `--dry-run` | Weekly momentum rebalancing |
+| `topup` | `--amount`, `--dry-run` | Add capital to existing positions (interactive prompt) |
 | `holdings` | `--tsv` | View current portfolio holdings |
 | `positions` | `--tsv` | View current trading positions |
 | `backtest` | `--start`, `--end`, `--rebalance-day`, `--band` | Historical strategy testing |
 | `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh` | Get stock rankings for specific date |
-| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh` | Get stock rankings for a specific date |
-| `clear-cache` | - | Reset cached data and state |
+| `clean` | - | Reset cached data and state |
+
+**Parameter Details:**
+- `--dry-run`: Simulates execution without placing live orders (default: False)
+- `--amount`: Capital amount in ₹ (prompted if not provided)
+- `--top-n`: Number of stocks in portfolio (default: 15 for initial/rebalance, 50 for rank)
+- `--band`: Portfolio stability band - higher values reduce churn (default: 5)
+- `--tsv`: Output in tab-separated format for spreadsheet import
+
+### 🔒 Dry Run Mode
+
+All trading commands (`initial`, `rebalance`, `topup`) support dry run mode for safe testing:
+
+```bash
+# Test initial investment without placing orders
+python cli.py initial --amount 100000 --top-n 15 --dry-run
+
+# Test rebalance logic without executing trades
+python cli.py rebalance --top-n 20 --band 5 --dry-run
+
+# Test capital top-up without placing orders
+python cli.py topup --amount 50000 --dry-run
+```
+
+**Benefits of Dry Run Mode:**
+- ✅ **Zero Risk**: No real trades are executed
+- ✅ **Full Simulation**: Complete strategy logic runs as normal
+- ✅ **Order Preview**: See exactly what orders would be placed
+- ✅ **Portfolio Impact**: Understand how trades would affect your positions
+- ✅ **Testing**: Validate strategy behavior before committing capital
+
+**When to Use Dry Run:**
+- Before your first live trade
+- When testing new parameters
+- During market volatility periods
+- For educational/learning purposes
+- Before significant capital deployment
 
 ## ⚖️ Weight Optimization
 

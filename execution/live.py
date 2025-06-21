@@ -52,13 +52,14 @@ def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool 
                 except Exception as e:
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
-def run_initial_investment(top_n: int, amount: float):
+def run_initial_investment(top_n: int, amount: float, dry_run: bool = False):
     """
     Executes the initial investment strategy by selecting the top N ranked stocks from the filtered universe,
     allocating the specified total capital among them, and displaying the resulting execution plan.
     Args:
         top_n (int): The number of top-ranked stocks to select for investment.
         amount (float): The total capital to be allocated across the selected stocks.
+        dry_run (bool): If True, simulates the execution without placing live orders.
     Returns:
         None
     Workflow:
@@ -98,12 +99,25 @@ def run_initial_investment(top_n: int, amount: float):
     display_execution_plan(exec_df, "initial")
 
     broker = ZerodhaBroker()
-    _execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker, dry_run)
     
-def run_topup_only(amount: float, preview = False):
+def run_topup_only(amount: float, dry_run = False):
     """
     Distributes new capital equally across currently held stocks.
     No ranking, no sells — just top-up.
+
+    Args:
+        amount (float): Total additional capital to be distributed across held stocks.
+        dry_run (bool): If True, simulates the execution without placing live orders.
+    
+    Workflow:
+        1. Retrieves the last trading day and prints it.
+        2. Fetches current holdings from the broker.
+        3. If no holdings found, prompts user to run initial investment first.
+        4. Gets latest prices for held stocks.
+        5. Plans top-up investment based on current holdings and new capital.
+        6. Displays execution plan to the user.
+        7. Executes orders if not in preview mode.
     """
     as_of_date = pd.to_datetime(get_last_trading_day())
     print(f"\n💰 Running capital top-up strategy as of {as_of_date.date()}...")
@@ -127,9 +141,7 @@ def run_topup_only(amount: float, preview = False):
     )
 
     display_execution_plan(exec_df, "top-up")
-    
-    if not preview:
-        _execute_orders(exec_df, broker)
+    _execute_orders(exec_df, broker, dry_run)
 
 def run_rebalance(top_n: int = 15, band: int = 5, dry_run: bool = False):
     """
