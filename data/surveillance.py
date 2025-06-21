@@ -52,17 +52,26 @@ def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
 def get_excluded_asm_symbols() -> set:
     """
     Extracts symbols from ASM data that are to be excluded.
-    Here we will exclude all symbols that are flags as LT-ASM or ST-ASM Stage II.
-    ST-ASM Stage I is not excluded as they are still strong from momentum perspective.
+    Only Stage I stocks are allowed from ASM list. All other stages (Stage II, Stage III, Stage IV) 
+    from both longterm and shortterm ASM lists will be excluded.
     """
     asm_data = _fetch_red_flags("asm")
-    lt = {entry["symbol"] for entry in asm_data.get("longterm", {}).get("data", [])}
-    st = {
+    
+    # Exclude all longterm ASM stocks that are not Stage I
+    lt_excluded = {
+        entry["symbol"] 
+        for entry in asm_data.get("longterm", {}).get("data", [])
+        if entry.get("asmSurvIndicator", "").strip() != "Stage I"
+    }
+    
+    # Exclude all shortterm ASM stocks that are not Stage I
+    st_excluded = {
         entry["symbol"]
         for entry in asm_data.get("shortterm", {}).get("data", [])
-        if entry.get("asmSurvIndicator", "").strip() == "Stage II"
+        if entry.get("asmSurvIndicator", "").strip() != "Stage I"
     }
-    return lt | st
+    
+    return lt_excluded | st_excluded
 
 def get_excluded_gsm_symbols() -> set:
     """
@@ -77,3 +86,74 @@ def get_excluded_esm_symbols() -> set:
     """
     gsm_data = _fetch_red_flags("esm")
     return {item["symbol"].strip() for item in gsm_data if "symbol" in item}
+
+def get_asm_exclusion_details(symbols: list[str]) -> dict:
+    """
+    Returns detailed information about which symbols are excluded from ASM and why.
+    
+    Args:
+        symbols: List of symbols to check
+        
+    Returns:
+        Dictionary with exclusion details including stage information
+    """
+    asm_data = _fetch_red_flags("asm")
+    
+    # Build a mapping of symbol to stage info
+    symbol_stage_map = {}
+    
+    # Process longterm ASM data
+    for entry in asm_data.get("longterm", {}).get("data", []):
+        symbol = entry["symbol"]
+        stage = entry.get("asmSurvIndicator", "").strip()
+        symbol_stage_map[symbol] = {
+            "type": "Longterm ASM",
+            "stage": stage,
+            "code": entry.get("survCode", ""),
+            "description": entry.get("survDesc", "")
+        }
+    
+    # Process shortterm ASM data (may override longterm if symbol exists in both)
+    for entry in asm_data.get("shortterm", {}).get("data", []):
+        symbol = entry["symbol"]
+        stage = entry.get("asmSurvIndicator", "").strip()
+        # If symbol exists in both, combine the info
+        if symbol in symbol_stage_map:
+            symbol_stage_map[symbol]["type"] = "Both LT & ST ASM"
+        else:
+            symbol_stage_map[symbol] = {
+                "type": "Shortterm ASM",
+                "stage": stage,
+                "code": entry.get("survCode", ""),
+                "description": entry.get("survDesc", "")
+            }
+    
+    # Categorize symbols from the input list
+    result = {
+        "allowed_stage1": [],
+        "excluded_non_stage1": [],
+        "not_in_asm": []
+    }
+    
+    for symbol in symbols:
+        if symbol in symbol_stage_map:
+            info = symbol_stage_map[symbol]
+            if info["stage"] == "Stage I":
+                result["allowed_stage1"].append({
+                    "symbol": symbol,
+                    "type": info["type"],
+                    "stage": info["stage"],
+                    "code": info["code"]
+                })
+            else:
+                result["excluded_non_stage1"].append({
+                    "symbol": symbol,
+                    "type": info["type"],
+                    "stage": info["stage"],
+                    "code": info["code"],
+                    "description": info["description"]
+                })
+        else:
+            result["not_in_asm"].append(symbol)
+    
+    return result

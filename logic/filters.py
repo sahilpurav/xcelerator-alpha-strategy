@@ -17,4 +17,22 @@ def apply_universe_filters(symbols: List[str]) -> List[str]:
     esm = get_excluded_esm_symbols()
     excluded = set().union(asm, gsm, esm)
 
-    return [s for s in symbols if s not in excluded]
+    filtered_symbols = [s for s in symbols if s not in excluded]
+    
+    # Print simple exclusion summary
+    excluded_from_universe = [s for s in symbols if s in excluded]
+    if excluded_from_universe:
+        excluded_breakdown = []
+        if any(s in asm for s in excluded_from_universe):
+            asm_count = len([s for s in excluded_from_universe if s in asm])
+            excluded_breakdown.append(f"{asm_count} ASM")
+        if any(s in gsm for s in excluded_from_universe):
+            gsm_count = len([s for s in excluded_from_universe if s in gsm])
+            excluded_breakdown.append(f"{gsm_count} GSM")
+        if any(s in esm for s in excluded_from_universe):
+            esm_count = len([s for s in excluded_from_universe if s in esm])
+            excluded_breakdown.append(f"{esm_count} ESM")
+        
+        print(f"🚫 Excluded {len(excluded_from_universe)} stocks from universe ({', '.join(excluded_breakdown)}): {', '.join(excluded_from_universe)}")
+
+    return filtered_symbols
