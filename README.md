@@ -26,17 +26,20 @@ The strategy provides a comprehensive command-line interface for all operations:
 
 All live trading commands support **dry run mode** using the `--dry-run` flag, which simulates the execution without placing actual orders. This is essential for testing and validation before committing real capital.
 
-#### Initial Investment
-Start your portfolio with fresh capital:
+#### Capital Withdrawal
+Withdraw funds from your existing portfolio:
 ```bash
-# Interactive mode with prompts
-python cli.py initial
+# Full withdrawal of portfolio
+python cli.py withdraw --full
 
-# Direct parameter specification
-python cli.py initial --amount 100000 --top-n 15
+# Withdraw a specific amount
+python cli.py withdraw --amount 50000
+
+# Withdraw a percentage of portfolio
+python cli.py withdraw --percent 20
 
 # Dry run mode (simulation without live orders)
-python cli.py initial --amount 100000 --top-n 15 --dry-run
+python cli.py withdraw --amount 50000 --dry-run
 ```
 
 #### Weekly Rebalance  
@@ -49,7 +52,7 @@ python cli.py rebalance
 python cli.py rebalance --dry-run
 
 # Custom parameters
-python cli.py rebalance --top-n 20 --band 7 --dry-run
+python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDBEES.NS" --rank-day "Wednesday" --dry-run
 ```
 
 #### Capital Top-up
@@ -90,7 +93,7 @@ python cli.py backtest --start 2020-01-01
 
 # Custom parameters
 python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
-  --rebalance-day Wednesday --band 7
+  --rebalance-day Wednesday --band 7 --cash "LIQUIDBEES.NS"
 ```
 
 #### Stock Rankings for Specific Date
@@ -116,29 +119,35 @@ python cli.py clean
 
 | Command | Key Parameters | Description |
 |---------|----------------|-------------|
-| `initial` | `--amount`, `--top-n`, `--dry-run` | Start portfolio with fresh capital (interactive prompts) |
-| `rebalance` | `--top-n`, `--band`, `--dry-run` | Weekly momentum rebalancing |
+| `withdraw` | `--amount`, `--percent`, `--full`, `--dry-run` | Withdraw capital from portfolio |
+| `rebalance` | `--top-n`, `--band`, `--cash`, `--rank-day`, `--dry-run` | Weekly momentum rebalancing |
 | `topup` | `--amount`, `--dry-run` | Add capital to existing positions (interactive prompt) |
 | `holdings` | `--tsv` | View current portfolio holdings |
 | `positions` | `--tsv` | View current trading positions |
-| `backtest` | `--start`, `--end`, `--rebalance-day`, `--band` | Historical strategy testing |
-| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh` | Get stock rankings for specific date |
+| `backtest` | `--start`, `--end`, `--rebalance-day`, `--band`, `--cash` | Historical strategy testing |
+| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh`, `--save-results` | Get stock rankings for specific date |
+| `optimize-weights` | `--start`, `--end`, `--method`, `--step`, `--max-dd`, `--top-n`, `--band`, `--save-results` | Find optimal ranking weights |
+| `compare-weights` | `<weights>`, `--start`, `--end`, `--max-dd`, `--top-n`, `--band`, `--include-common`, `--save-results` | Compare weight combinations |
 | `clean` | - | Reset cached data and state |
 
 **Parameter Details:**
 - `--dry-run`: Simulates execution without placing live orders (default: False)
-- `--amount`: Capital amount in ₹ (prompted if not provided)
-- `--top-n`: Number of stocks in portfolio (default: 15 for initial/rebalance, 50 for rank)
+- `--amount`: Capital amount in ₹ (prompted if not provided for topup)
+- `--percent`: Percentage of portfolio to withdraw (1-100)
+- `--full`: Withdraw entire portfolio (for withdraw command)
+- `--top-n`: Number of stocks in portfolio (default: 15 for rebalance, 50 for rank)
 - `--band`: Portfolio stability band - higher values reduce churn (default: 5)
+- `--cash`: Cash equivalent symbol (default: "LIQUIDBEES.NS")
+- `--rank-day`: Day of week for ranking (Monday, Tuesday, etc.)
 - `--tsv`: Output in tab-separated format for spreadsheet import
 
 ### 🔒 Dry Run Mode
 
-All trading commands (`initial`, `rebalance`, `topup`) support dry run mode for safe testing:
+All trading commands (`rebalance`, `topup`, `withdraw`) support dry run mode for safe testing:
 
 ```bash
-# Test initial investment without placing orders
-python cli.py initial --amount 100000 --top-n 15 --dry-run
+# Test withdrawal without executing trades
+python cli.py withdraw --amount 50000 --dry-run
 
 # Test rebalance logic without executing trades
 python cli.py rebalance --top-n 20 --band 5 --dry-run
