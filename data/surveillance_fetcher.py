@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from utils.market import get_last_trading_day
+from utils.market import get_last_trading_date
 from utils.cache import load_from_file, save_to_file
 
 def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
@@ -16,7 +16,7 @@ def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
     if measure not in ["asm", "gsm", "esm"]:
         raise ValueError("Invalid measure type. Use 'asm', 'gsm' or 'esm'.")
 
-    last_trading_date = get_last_trading_day()
+    last_trading_date = get_last_trading_date()
     output_file = f"{cache_dir}/{measure}-{last_trading_date}.json"
 
     cached_data = load_from_file(output_file)

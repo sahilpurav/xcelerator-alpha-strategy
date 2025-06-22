@@ -6,7 +6,7 @@ from data.universe_fetcher import get_universe_symbols
 from logic.filters import apply_universe_filters
 from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
-from utils.market import get_last_trading_day
+from utils.market import get_last_trading_date, get_ranking_date
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
 from logic.planner import (
@@ -79,7 +79,7 @@ def run_topup_only(amount: float, dry_run = False):
         6. Displays execution plan to the user.
         7. Executes orders if not in preview mode.
     """
-    as_of_date = pd.to_datetime(get_last_trading_day())
+    as_of_date = pd.to_datetime(get_last_trading_date())
     print(f"\n💰 Running capital top-up strategy as of {as_of_date.date()}...")
 
     broker = ZerodhaBroker()
@@ -127,7 +127,7 @@ def run_withdraw(
         6. Displays execution plan
         7. Executes orders if not in dry run mode
     """
-    as_of_date = pd.to_datetime(get_last_trading_day())
+    as_of_date = pd.to_datetime(get_last_trading_date())
     print(f"\n💸 Running capital withdrawal strategy as of {as_of_date.date()}...")
     
     # Input validation
@@ -174,6 +174,7 @@ def run_rebalance(
     top_n: int = 15, 
     band: int = 5, 
     cash_equivalent: str = "LIQUIDBEES.NS",
+    rank_day: Optional[str] = None,
     dry_run: bool = False
 ):
     """
@@ -185,10 +186,17 @@ def run_rebalance(
         top_n (int): Target number of stocks in portfolio
         band (int): Band size for portfolio stability
         cash_equivalent (str): Symbol to use as cash equivalent
+        rank_day (str, optional): Day of week for ranking (Monday, Tuesday, Wednesday, etc.).
+                                 If None, uses the latest trading day for both ranking and execution.
         dry_run (bool): If True, simulates execution without placing orders
     """
-    as_of_date = pd.to_datetime(get_last_trading_day())
-    print(f"\n🔄 Running weekly rebalance strategy as of {as_of_date.date()}...")
+    # Get trading dates - one for execution (latest) and one for ranking (specified day)
+    exec_date = pd.to_datetime(get_last_trading_date())
+    ranking_date = pd.to_datetime(get_ranking_date(rank_day))
+    
+    print(f"\n🔄 Running weekly rebalance strategy as of {exec_date.date()}...")
+    if ranking_date != exec_date:
+        print(f"📊 Using rankings from {ranking_date.date()} (last {rank_day or 'trading day'})")
 
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()
@@ -208,7 +216,9 @@ def run_rebalance(
         cash_symbol = f"{cash_symbol}.NS"
         
     price_symbols = list(set(universe_symbols + [f"{s}.NS" for s in held_symbols] + [cash_symbol])) + ["^CRSLDX"]
-    price_data = _get_latest_prices(price_symbols, as_of_date)
+    
+    # Get price data until exec_date (includes data needed for ranking_date as well)
+    price_data = _get_latest_prices(price_symbols, exec_date)
 
     # Filter out non-universe prices before ranking
     price_data_for_ranking = {
@@ -219,7 +229,7 @@ def run_rebalance(
     # Step 3: Run strategy to get all needed information in one call
     recommendations, market_regime, held, new_entries, removed_stocks, _, ranked_df = run_strategy(
         price_data_for_ranking,
-        as_of_date,
+        ranking_date,  # Use ranking_date for strategy decisions
         held_symbols,
         top_n,
         band,
@@ -242,7 +252,7 @@ def run_rebalance(
         exec_df = plan_move_to_cash_equivalent(
             previous_holdings=previous_holdings,
             price_data=price_data,
-            as_of_date=as_of_date,
+            as_of_date=exec_date,  # Use execution date for pricing
             ranked_df=ranked_df,
             cash_equivalent=cash_equivalent
         )
@@ -266,7 +276,7 @@ def run_rebalance(
             removed_stocks=sell_symbols,
             previous_holdings=previous_holdings,
             price_data=price_data,
-            as_of_date=as_of_date,
+            as_of_date=exec_date,  # Use execution date for pricing
             ranked_df=ranked_df
         )
     

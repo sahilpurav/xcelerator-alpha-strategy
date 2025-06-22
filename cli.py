@@ -12,11 +12,12 @@ app = typer.Typer(help="Xcelerator Alpha Strategy CLI - A momentum-based portfol
 def rebalance(
     top_n: int = typer.Option(15, help="Number of stocks to select"),
     band: int = typer.Option(5, help="Band size for portfolio stability"),
-    cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
+    cash: str = typer.Option("LIQUIDBEES.NS", help="Cash equivalent symbol"),
+    rank_day: Optional[str] = typer.Option(None, help="Day of week for ranking (Monday, Tuesday, etc.). Default: use latest trading day"),
     dry_run: bool = typer.Option(False, help="Simulate without placing orders")
 ):
     """Run full strategy with market regime check"""
-    run_rebalance(top_n=top_n, band=band, cash_equivalent=cash, dry_run=dry_run)
+    run_rebalance(top_n=top_n, band=band, cash_equivalent=cash, rank_day=rank_day, dry_run=dry_run)
 
 @app.command()
 def topup(

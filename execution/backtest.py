@@ -8,7 +8,7 @@ from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices
 from logic.strategy import run_strategy
 from logic.planner import plan_equity_investment, plan_portfolio_rebalance, plan_move_to_cash_equivalent
-from utils.market import get_last_trading_day
+from utils.market import get_last_trading_date
 from utils.cache import save_to_file
 
 class BacktestEngine:
@@ -492,7 +492,7 @@ def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", ban
         cash_equivalent: Symbol to use as cash equivalent
     """
     start_date = pd.to_datetime(start)
-    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_day())
+    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date())
     
     # Initialize and run backtest
     engine = BacktestEngine(

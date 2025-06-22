@@ -4,7 +4,7 @@ import yfinance as yf
 from typing import Optional
 from datetime import datetime
 from utils.market import is_market_open_now
-from utils.market import get_last_trading_day
+from utils.market import get_last_trading_date
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
 
 def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: str = "cache/prices") -> bool:
@@ -13,10 +13,10 @@ def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: 
     Also verifies that the cache contains the required historical range if start date is provided.
     Returns True if cache is stale or missing, False otherwise.
     """
-    # Check caching status
-    
     # If caching is disabled, always return True to force fresh data
     if not is_caching_enabled():
+        # Print a debug message to make it clear we're skipping cache
+        print("⚠️ Caching is disabled, using fresh data...")
         return True
         
     if not symbols:
@@ -32,7 +32,23 @@ def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: 
         return True
 
     try:
-        df = pd.read_csv(check_path, parse_dates=["Date"], index_col="Date")
+        # Get data using the utility function
+        cached_data = load_from_file(check_path)
+        if not cached_data or not isinstance(cached_data, list) or not cached_data:
+            print(f"🛑 Invalid or empty cache for {check_symbol}")
+            return True
+            
+        # Convert to DataFrame
+        df = pd.DataFrame(cached_data)
+        
+        # Check if "Date" column exists
+        if "Date" not in df.columns:
+            print(f"🛑 Invalid cache format for {check_symbol}: missing 'Date' column")
+            return True
+            
+        # Set Date as index after verifying it exists
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.set_index("Date")
         
         # Check if we have enough historical data
         if start:
@@ -48,7 +64,7 @@ def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: 
 
         # Check if we have latest data
         last_cached_date = pd.to_datetime(df.index.max()).normalize()
-        last_trading_day = pd.to_datetime(get_last_trading_day()).normalize()
+        last_trading_day = pd.to_datetime(get_last_trading_date()).normalize()
 
         if last_cached_date < last_trading_day:
             print(f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}")
@@ -88,29 +104,39 @@ def download_and_cache_prices(
 
     live_market = is_market_open_now()
     
-    # Only create cache directories if caching is enabled
+    # Only create cache directories and check cache if caching is enabled
     if is_caching_enabled():
         os.makedirs(cache_dir, exist_ok=True)
-
-    # Load from cache if everything is valid and fresh
-    if not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir) and not live_market:
-        print("✅ Cache is fresh and contains required history. Loading all symbols locally...")
-        result = {}
-        for symbol in symbols:
-            try:
-                path = os.path.join(cache_dir, f"{symbol}.csv")
-                cached_data = load_from_file(path)
-                if cached_data:
-                    df = pd.DataFrame(cached_data)
-                    # Convert Date strings back to datetime and set as index
-                    df["Date"] = pd.to_datetime(df["Date"])
-                    df = df.set_index("Date").sort_index()
-                    result[symbol] = df
-                else:
-                    print(f"⚠️ Cache missing for {symbol}")
-            except Exception as e:
-                print(f"⚠️ Failed to load cache for {symbol}: {e}")
-        return result
+        
+        # Load from cache if everything is valid and fresh
+        if not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir) and not live_market:
+            print("✅ Cache is fresh and contains required history. Loading all symbols locally...")
+            result = {}
+            for symbol in symbols:
+                try:
+                    path = os.path.join(cache_dir, f"{symbol}.csv")
+                    # Load the raw data with the utility function
+                    cached_data = load_from_file(path)
+                    if cached_data:
+                        # Convert to pandas DataFrame and handle Date formatting
+                        df = pd.DataFrame(cached_data)
+                        # Make an explicit copy before modifying
+                        df = df.copy()
+                        df["Date"] = pd.to_datetime(df["Date"])
+                        
+                        # Ensure numeric columns are converted to float
+                        numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+                        for col in numeric_columns:
+                            if col in df.columns:
+                                df[col] = pd.to_numeric(df[col], errors='coerce')
+                                
+                        df = df.set_index("Date").sort_index()
+                        result[symbol] = df
+                    else:
+                        print(f"⚠️ Cache missing for {symbol}")
+                except Exception as e:
+                    print(f"⚠️ Failed to load cache for {symbol}: {e}")
+            return result
     
     if live_market:
         print("⚠️ Live market detected. Ignoring the cache and using fresh prices.")
@@ -138,17 +164,29 @@ def download_and_cache_prices(
             df = data[symbol] if isinstance(data.columns, pd.MultiIndex) else data
             df = df.dropna()
             df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            df = df.rename_axis("Date").reset_index().set_index("Date").sort_index()
-            cached_path = os.path.join(cache_dir, f"{symbol}.csv")
-
+            # Make an explicit copy to avoid SettingWithCopyWarning
+            df = df.rename_axis("Date").reset_index().set_index("Date").sort_index().copy()
+            
+            # Ensure numeric columns are in the correct format
+            numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    
             result[symbol] = df
 
-            if not live_market:
-                # Convert to records for storage
-                records = df.to_dict('records')
-                save_to_file(records, cached_path)
+            # Only attempt to save to cache if caching is enabled
+            if is_caching_enabled() and not live_market:
+                try:
+                    cached_path = os.path.join(cache_dir, f"{symbol}.csv")
+                    # Convert DataFrame to records for storage (list of dictionaries)
+                    df_to_save = df.reset_index()  # Make sure Date is a column, not index
+                    records = df_to_save.to_dict('records')
+                    # Use the utility function to save
+                    save_to_file(records, cached_path)
+                except Exception as e:
+                    print(f"⚠️ Failed to cache {symbol}: {e}")
         except Exception as e:
             print(f"⚠️ Failed processing {symbol}: {e}")
-            os.remove(cached_path) if os.path.exists(cached_path) else None
 
     return result
