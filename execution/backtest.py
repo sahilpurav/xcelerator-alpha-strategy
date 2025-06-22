@@ -7,7 +7,7 @@ from broker.backtest import BacktestBroker
 from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices
 from logic.strategy import run_strategy
-from logic.planner import plan_initial_investment, plan_rebalance_investment, plan_exit_all_positions
+from logic.planner import plan_equity_investment, plan_portfolio_rebalance, plan_move_to_cash_equivalent
 from utils.market import get_last_trading_day
 
 class BacktestEngine:
@@ -16,7 +16,8 @@ class BacktestEngine:
     """
     
     def __init__(self, initial_capital: float = 100_000, top_n: int = 15, band: int = 5, 
-                 rebalance_frequency: str = "W", rebalance_day: str = "Wednesday", transaction_cost_pct: float = 0.001190):
+                 rebalance_frequency: str = "W", rebalance_day: str = "Wednesday", transaction_cost_pct: float = 0.001190,
+                 cash_equivalent: str = "LIQUIDBEES.NS"):
         """
         Initialize the backtest engine.
         
@@ -27,6 +28,7 @@ class BacktestEngine:
             rebalance_frequency: 'W' for weekly, 'M' for monthly
             rebalance_day: Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday) - only for weekly
             transaction_cost_pct: Transaction cost percentage
+            cash_equivalent: Symbol to use as cash equivalent
         """
         self.initial_capital = initial_capital
         self.top_n = top_n
@@ -34,6 +36,7 @@ class BacktestEngine:
         self.rebalance_frequency = rebalance_frequency
         self.rebalance_day = rebalance_day.lower()
         self.transaction_cost_pct = transaction_cost_pct
+        self.cash_equivalent = cash_equivalent
         
         # Map day names to weekday numbers (Monday=0, Sunday=6)
         self.day_mapping = {
@@ -48,8 +51,8 @@ class BacktestEngine:
         # Initialize broker
         self.broker = BacktestBroker(initial_capital, transaction_cost_pct)
         
-        # Track performance
-        self.portfolio_values = []  # [(date, portfolio_value)]
+        # Results tracking
+        self.portfolio_values = []
         self.rebalance_dates = []
         self.trade_count = 0
         
@@ -100,23 +103,64 @@ class BacktestEngine:
     
     def execute_initial_investment(self, date: pd.Timestamp, price_data: Dict[str, pd.DataFrame]) -> Tuple[bool, pd.DataFrame]:
         """
-        Execute initial investment on the first rebalance date.
-        
+        Execute initial investment on a given date.
         Returns:
             Tuple of (success, execution_df)
         """
-        # Run strategy to get ranked stocks
-        _, _, _, _, ranked_df = run_strategy(price_data, date, [], self.top_n)
+        # Run strategy to get recommendations, market regime and ranked data in one call
+        recommendations, regime, _, new_entries, _, _, ranked_df = run_strategy(
+            price_data,
+            date,
+            [],  # No holdings yet
+            self.top_n,
+            self.band,
+            cash_equivalent=self.cash_equivalent.replace(".NS", "")
+        )
         
-        if ranked_df.empty:
+        # If market is weak, move to cash equivalent
+        if regime == "WEAK":
+            # In initial investment with weak market, just buy cash equivalent
+            cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+            cash_price = None
+            
+            # Find cash equivalent price
+            for symbol, df in price_data.items():
+                if symbol.replace(".NS", "") == cash_symbol_clean and date in df.index:
+                    cash_price = df.loc[date, "Close"]
+                    break
+                    
+            if not cash_price:
+                return False, pd.DataFrame()
+                
+            # Calculate quantity
+            qty = int(self.broker.cash / cash_price)
+            
+            if qty <= 0:
+                return False, pd.DataFrame()
+                
+            # Create execution dataframe
+            exec_df = pd.DataFrame([{
+                "Symbol": cash_symbol_clean,
+                "Rank": "N/A",
+                "Action": "BUY",
+                "Price": round(cash_price, 2),
+                "Quantity": qty,
+                "Invested": round(qty * cash_price, 2),
+                "Weight %": 100.0
+            }])
+            
+            # Execute trades
+            self._execute_backtest_orders(exec_df, date, price_data)
+            return False, exec_df  # Return False to indicate weak market regime
+            
+        # For strong market, extract selected symbols from recommendations
+        selected_symbols = [rec["symbol"] for rec in recommendations if rec["action"] == "BUY"]
+        
+        if not selected_symbols:
             return False, pd.DataFrame()
-        
-        # Select top N stocks
-        top_n_df = ranked_df.nsmallest(self.top_n, "total_rank")
-        selected_symbols = top_n_df["symbol"].tolist()
-        
+            
         # Generate execution plan
-        exec_df = plan_initial_investment(
+        exec_df = plan_equity_investment(
             symbols=selected_symbols,
             price_data=price_data,
             as_of_date=date,
@@ -143,38 +187,48 @@ class BacktestEngine:
         if not held_symbols:
             return False, pd.DataFrame()
         
-        # Run strategy to determine portfolio changes and get ranked data
-        held, new_entries, removed, _, ranked_df = run_strategy(
+        # Run strategy to get recommendations, regime and ranked data in one call
+        recommendations, regime, held, new_entries, removed_stocks, _, ranked_df = run_strategy(
             price_data,
             date,
             held_symbols,
             self.top_n,
-            self.band
+            self.band,
+            cash_equivalent=self.cash_equivalent.replace(".NS", "")
         )
         
-        # Check if we need to exit all positions (weak market)
-        if not held and not new_entries and removed == held_symbols:
-            # Plan complete exit
-            exec_df = plan_exit_all_positions(
+        # If market is weak, move to cash equivalent
+        if regime == "WEAK":
+            # Check if we're already in cash
+            cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+            is_in_cash = cash_symbol_clean in held_symbols and len(held_symbols) == 1
+            
+            if is_in_cash:
+                return False, pd.DataFrame()  # Already in cash, no action needed
+                
+            # Plan move to cash equivalent
+            exec_df = plan_move_to_cash_equivalent(
                 previous_holdings=previous_holdings,
                 price_data=price_data,
                 as_of_date=date,
-                ranked_df=pd.DataFrame()  # Empty DataFrame for weak regime
+                ranked_df=ranked_df,
+                cash_equivalent=self.cash_equivalent
             )
             
             # Execute exit trades
             if not exec_df.empty:
                 self._execute_backtest_orders(exec_df, date, price_data)
-            return False, exec_df
+            return False, exec_df  # Return False to indicate weak market
         
-        if not new_entries and not removed:
-            return True, pd.DataFrame()
+        # For strong market, we already have all the data needed
+        if not new_entries and not removed_stocks:
+            return True, pd.DataFrame()  # No changes needed
         
         # Generate execution plan
-        exec_df = plan_rebalance_investment(
+        exec_df = plan_portfolio_rebalance(
             held_stocks=held,
             new_entries=new_entries,
-            removed_stocks=removed,
+            removed_stocks=removed_stocks,
             previous_holdings=previous_holdings,
             price_data=price_data,
             as_of_date=date,
@@ -424,7 +478,7 @@ def wrap_symbols(symbols: List[str], width: int = 65) -> str:
     
     return "\n               ".join(lines)  # Align with the label spacing
 
-def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", band: int = 5):
+def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", band: int = 5, cash_equivalent: str = "LIQUIDBEES.NS"):
     """
     Main entry point for backtesting from CLI.
     This function will be executed when you run `python cli.py backtest`
@@ -434,6 +488,7 @@ def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", ban
         end: End date in YYYY-MM-DD format (optional, defaults to last trading day)
         rebalance_day: Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)
         band: Band size for portfolio stability (higher = less churn)
+        cash_equivalent: Symbol to use as cash equivalent
     """
     start_date = pd.to_datetime(start)
     end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_day())
@@ -444,7 +499,8 @@ def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", ban
         top_n=15,
         band=band,
         rebalance_frequency="W",
-        rebalance_day=rebalance_day
+        rebalance_day=rebalance_day,
+        cash_equivalent=cash_equivalent
     )
     
     results = engine.run_backtest(start_date, end_date)

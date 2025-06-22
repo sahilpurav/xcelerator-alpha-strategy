@@ -5,7 +5,7 @@ import math
 # _fill_underweight_gaps_only() - Conservative: Fill gaps only (for rebalance)
 # _maximize_capital_deployment() - Aggressive: 3-step deployment (for top-ups)
     
-def plan_initial_investment(
+def plan_equity_investment(
     symbols: list[str],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
@@ -291,7 +291,7 @@ def _maximize_capital_deployment(
     return list(consolidated.values())
 
 
-def plan_top_up_investment(
+def plan_capital_addition(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
@@ -356,7 +356,7 @@ def plan_top_up_investment(
     else:
         return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
 
-def plan_rebalance_investment(
+def plan_portfolio_rebalance(
     held_stocks: list[str],
     new_entries: list[str],
     removed_stocks: list[str],
@@ -505,24 +505,26 @@ def plan_rebalance_investment(
 
     return df_exec.sort_values(by=["Action", "Symbol"], ascending=[False, True])
 
-def plan_exit_all_positions(
+def plan_move_to_cash_equivalent(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
-    ranked_df: pd.DataFrame
+    ranked_df: pd.DataFrame,
+    cash_equivalent: str = "LIQUIDBEES.NS"
 ) -> pd.DataFrame:
     """
-    Plans complete exit from all positions when market regime is weak.
-    Sells all holdings and goes to cash.
+    Plans complete exit from all positions when market regime is weak and moves to cash equivalent.
+    Sells all holdings and invests in the specified cash equivalent.
     
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
     - price_data: Dict mapping symbols to price DataFrames
     - as_of_date: Date for which price is used
     - ranked_df: DataFrame containing stock rankings (for rank mapping)
+    - cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDBEES.NS")
     
     Returns:
-    - DataFrame with SELL orders for all positions
+    - DataFrame with SELL orders for all positions and BUY order for cash equivalent
     """
     if not previous_holdings:
         return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
@@ -544,21 +546,163 @@ def plan_exit_all_positions(
         if as_of_date in df.index
     }
     
+    # Filter out cash equivalent from current holdings if present
+    non_cash_holdings = [h for h in previous_holdings 
+                         if h["symbol"] != cash_equivalent.replace(".NS", "")]
+    
+    # Step 1: Generate SELL orders for all non-cash positions
     execution_data = []
-    for holding in previous_holdings:
+    total_value = 0
+    
+    for holding in non_cash_holdings:
         symbol = holding["symbol"]
         quantity = holding["quantity"]
         price = latest_close.get(symbol)
         
         if price and quantity > 0:
+            current_value = quantity * price
+            total_value += current_value
+            
             execution_data.append({
                 "Symbol": symbol,
                 "Rank": rank_map.get(symbol, "N/A"),
                 "Action": "SELL",
                 "Price": round(price, 2),
                 "Quantity": int(quantity),
-                "Invested": round(quantity * price, 2),
+                "Invested": round(current_value, 2),
                 "Weight %": 0.0
             })
     
-    return pd.DataFrame(execution_data) if execution_data else pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
+    # Step 2: Generate BUY order for cash equivalent
+    # First check if we have price data for the cash equivalent
+    cash_symbol_clean = cash_equivalent.replace(".NS", "")
+    cash_price = latest_close.get(cash_symbol_clean)
+    
+    if cash_price and total_value > 0:
+        # Assume 0.1% transaction cost
+        transaction_cost = total_value * 0.001
+        available_capital = total_value - transaction_cost
+        
+        # Calculate how many units we can buy
+        qty = int(available_capital / cash_price)
+        
+        if qty > 0:
+            invested = qty * cash_price
+            
+            execution_data.append({
+                "Symbol": cash_symbol_clean,
+                "Rank": "N/A",
+                "Action": "BUY",
+                "Price": round(cash_price, 2),
+                "Quantity": qty,
+                "Invested": round(invested, 2),
+                "Weight %": 100.0
+            })
+    
+    return pd.DataFrame(execution_data) if execution_data else pd.DataFrame(
+        columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
+    )
+
+def plan_capital_withdrawal(
+    previous_holdings: list[dict],
+    price_data: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp,
+    amount: float = None,
+    percentage: float = None,
+    full: bool = False,
+    transaction_cost_pct: float = 0.001190
+) -> pd.DataFrame:
+    """
+    Plans the withdrawal of capital from the portfolio.
+    
+    Parameters:
+    - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
+    - price_data: Dict mapping symbols to price DataFrames
+    - as_of_date: Date for which price is used
+    - amount: Specific amount to withdraw (₹)
+    - percentage: Percentage of portfolio to withdraw (1-100)
+    - full: If True, withdraws entire portfolio (overrides amount/percentage)
+    - transaction_cost_pct: Percentage of transaction cost per trade
+    
+    Returns:
+    - DataFrame with SELL orders for withdrawal
+    """
+    if not previous_holdings:
+        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
+    
+    # Get latest prices
+    latest_close = {
+        symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
+        for symbol, df in price_data.items()
+        if as_of_date in df.index
+    }
+    
+    # Calculate current portfolio value
+    total_portfolio_value = sum(
+        h["quantity"] * latest_close.get(h["symbol"], 0)
+        for h in previous_holdings
+    )
+    
+    # Determine withdrawal amount
+    withdrawal_amount = 0
+    if full:
+        withdrawal_amount = total_portfolio_value
+    elif percentage is not None:
+        withdrawal_amount = total_portfolio_value * (percentage / 100)
+    elif amount is not None:
+        withdrawal_amount = amount
+    else:
+        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
+    
+    # For full withdrawal, sell everything
+    if full:
+        execution_data = []
+        for holding in previous_holdings:
+            symbol = holding["symbol"]
+            quantity = holding["quantity"]
+            price = latest_close.get(symbol)
+            
+            if price and quantity > 0:
+                execution_data.append({
+                    "Symbol": symbol,
+                    "Rank": "N/A",
+                    "Action": "SELL",
+                    "Price": round(price, 2),
+                    "Quantity": int(quantity),
+                    "Invested": round(quantity * price, 2),
+                    "Weight %": 0.0
+                })
+                
+        return pd.DataFrame(execution_data)
+    
+    # For partial withdrawal, calculate proportional quantities to sell
+    withdrawal_ratio = withdrawal_amount / total_portfolio_value
+    execution_data = []
+    
+    for holding in previous_holdings:
+        symbol = holding["symbol"]
+        quantity = holding["quantity"]
+        price = latest_close.get(symbol)
+        
+        if price and quantity > 0:
+            # Calculate sell quantity proportionally
+            sell_qty = int(quantity * withdrawal_ratio)
+            
+            if sell_qty > 0:
+                execution_data.append({
+                    "Symbol": symbol,
+                    "Rank": "N/A",
+                    "Action": "SELL",
+                    "Price": round(price, 2),
+                    "Quantity": sell_qty,
+                    "Invested": round(sell_qty * price, 2),
+                    "Weight %": 0.0
+                })
+    
+    return pd.DataFrame(execution_data)
+
+# Keep compatibility with old function names
+plan_initial_investment = plan_equity_investment
+plan_top_up_investment = plan_capital_addition 
+plan_rebalance_investment = plan_portfolio_rebalance
+plan_exit_all_positions = plan_move_to_cash_equivalent
