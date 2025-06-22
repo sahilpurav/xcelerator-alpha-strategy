@@ -1,6 +1,6 @@
 import typer
 from typing import Optional, List
-from execution.live import run_initial_investment, run_rebalance, run_topup_only
+from execution.live import run_rebalance, run_topup_only, run_withdraw
 from execution.backtest import run_backtest
 from execution.maintenance import run_clear_cache
 from execution.portfolio import run_holdings_display, run_positions_display, run_rank
@@ -9,25 +9,32 @@ from execution.optimization import run_optimize_weights, run_compare_weights
 app = typer.Typer()
 
 @app.command()
-def initial(
-    top_n: int = typer.Option(15, prompt="📊 Enter number of stocks to invest in (top_n)"),
-    amount: float = typer.Option(..., prompt="💰 Enter the total capital to invest (amount in ₹)"),
-    dry_run: bool = typer.Option(False, help="If True, simulates the execution without placing live orders.")
+def rebalance(
+    top_n: int = typer.Option(15, help="Number of stocks to select"),
+    band: int = typer.Option(5, help="Band size for portfolio stability"),
+    cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
+    dry_run: bool = typer.Option(False, help="Simulate without placing orders")
 ):
-    """Run initial investment interactively with prompts."""
-    run_initial_investment(top_n=top_n, amount=amount, dry_run=dry_run)
-@app.command()
-def rebalance(top_n: int = 15, band: int = 5, dry_run: bool = False):
-    """Run weekly rebalance with optional fresh capital"""
-    run_rebalance(top_n=top_n, band=band, dry_run=dry_run)
+    """Run full strategy with market regime check"""
+    run_rebalance(top_n=top_n, band=band, cash_equivalent=cash, dry_run=dry_run)
 
 @app.command()
 def topup(
-    amount: float = typer.Option(..., prompt="💰 Enter the total capital to top-up (amount in ₹)"),
-    dry_run: bool = typer.Option(False, help="If True, simulates the execution without placing live orders.")
+    amount: float = typer.Option(..., prompt="💰 Enter amount to add (₹)"),
+    dry_run: bool = typer.Option(False, help="Simulate without placing orders")
 ):
-    """Top up capital in current holdings only"""
-    run_topup_only(amount, dry_run)
+    """Add capital to existing portfolio"""
+    run_topup_only(amount=amount, dry_run=dry_run)
+
+@app.command()
+def withdraw(
+    amount: Optional[float] = typer.Option(None, help="Amount to withdraw (₹)"),
+    percent: Optional[float] = typer.Option(None, help="Percentage to withdraw (1-100)"),
+    full: bool = typer.Option(False, help="Withdraw entire portfolio"),
+    dry_run: bool = typer.Option(False, help="Simulate without placing orders")
+):
+    """Withdraw capital from portfolio"""
+    run_withdraw(amount=amount, percentage=percent, full=full, dry_run=dry_run)
 
 @app.command()
 def clean():
@@ -51,10 +58,11 @@ def backtest(
         start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
         end: Optional[str] = typer.Option(None, help="Optional end date (YYYY-MM-DD). Defaults to today."),
         rebalance_day: str = typer.Option("Wednesday", help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)"),
-        band: int = typer.Option(5, help="Band size for portfolio stability (higher = less churn)")
+        band: int = typer.Option(5, help="Band size for portfolio stability (higher = less churn)"),
+        cash: str = typer.Option("LIQUIDBEES.NS", help="Cash equivalent symbol")
 ):
     """Run the backtest for Xcelerator Alpha Strategy."""
-    run_backtest(start, end, rebalance_day, band)
+    run_backtest(start, end, rebalance_day, band, cash)
 
 
 @app.command()
