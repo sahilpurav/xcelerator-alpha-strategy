@@ -2,11 +2,11 @@ import typer
 from typing import Optional, List
 from execution.live import run_rebalance, run_topup_only, run_withdraw
 from execution.backtest import run_backtest
-from execution.maintenance import run_clear_cache
+from execution.maintenance import run_clean
 from execution.portfolio import run_holdings_display, run_positions_display, run_rank
 from execution.optimization import run_optimize_weights, run_compare_weights
 
-app = typer.Typer()
+app = typer.Typer(help="Xcelerator Alpha Strategy CLI - A momentum-based portfolio management system for Indian equities")
 
 @app.command()
 def rebalance(
@@ -39,7 +39,7 @@ def withdraw(
 @app.command()
 def clean():
     """Delete all cached files and reset the strategy state."""
-    run_clear_cache()
+    run_clean()
 
 @app.command()
 def holdings(tsv: bool = False):

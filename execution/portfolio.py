@@ -8,7 +8,6 @@ from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices, is_cache_stale_or_missing
 from utils.market import is_market_strong
 
-
 def run_holdings_display(tsv: bool = False):
     """Display current holdings and their details."""
     broker = ZerodhaBroker()

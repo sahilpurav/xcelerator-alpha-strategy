@@ -1,5 +1,4 @@
 import pandas as pd
-import os
 from config import Config
 from utils.notification import send_whatsapp_message
 

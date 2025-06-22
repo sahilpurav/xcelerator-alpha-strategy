@@ -4,7 +4,6 @@ from optimization import WeightOptimizer
 from optimization.utils import parse_weights_string, generate_test_combinations, save_optimization_results
 import typer
 
-
 def run_optimize_weights(
     start: str,
     end: str,

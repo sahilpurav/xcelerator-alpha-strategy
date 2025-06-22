@@ -1,8 +1,7 @@
 import shutil
 import os
 
-
-def run_clear_cache():
+def run_clean():
     """
     Delete all cached files and reset the strategy state.
     This will remove all cached price data and reset the strategy state.

@@ -1,5 +1,4 @@
 import pandas as pd
-import typer
 import os
 import time
 from typing import Optional
@@ -59,54 +58,7 @@ def _execute_orders(exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool 
                 except Exception as e:
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
-def run_initial_investment(top_n: int, amount: float, dry_run: bool = False):
-    """
-    Executes the initial investment strategy by selecting the top N ranked stocks from the filtered universe,
-    allocating the specified total capital among them, and displaying the resulting execution plan.
-    Args:
-        top_n (int): The number of top-ranked stocks to select for investment.
-        amount (float): The total capital to be allocated across the selected stocks.
-        dry_run (bool): If True, simulates the execution without placing live orders.
-    Returns:
-        None
-    Workflow:
-        1. Retrieves the last trading day and prints it.
-        2. Fetches the filtered universe of stocks and appends index symbol.
-        3. Obtains the latest price data for the selected symbols.
-        4. Runs strategy to get ranked stocks.
-        5. Selects the top N stocks with the best (lowest) total rank.
-        6. Generates an execution plan for initial investment allocation.
-        7. Displays the execution plan to the user.
-    """
-    as_of_date = pd.to_datetime(get_last_trading_day())
-    print(f"\n🟢 Running initial investment strategy as of {as_of_date.date()}")
 
-    universe = _get_filtered_universe()
-    symbols = [f"{s}.NS" for s in universe] + ["^CRSLDX"]
-    price_data = _get_latest_prices(symbols, as_of_date)
-
-    # Run strategy to get ranked stocks
-    recommendations, market_regime, _, _, _, _, ranked_df = run_strategy(price_data, as_of_date, [], top_n)
-    
-    if market_regime == "WEAK":
-        print("⚠️ Market conditions are weak. Cannot proceed with initial investment.")
-        return
-    
-    top_n_df = ranked_df.nsmallest(top_n, "total_rank")
-    selected = top_n_df["symbol"].tolist()
-
-    exec_df = plan_equity_investment(
-        symbols=selected,
-        price_data=price_data,
-        as_of_date=as_of_date,
-        total_capital=amount,
-        ranked_df=ranked_df
-    )
-
-    display_execution_plan(exec_df, "initial")
-
-    broker = ZerodhaBroker()
-    _execute_orders(exec_df, broker, dry_run)
     
 def run_topup_only(amount: float, dry_run = False):
     """

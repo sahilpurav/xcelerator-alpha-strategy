@@ -4,7 +4,7 @@ Utility functions for optimization module.
 
 import pandas as pd
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 
 
 def validate_weights(weights: Tuple[float, float, float]) -> bool:

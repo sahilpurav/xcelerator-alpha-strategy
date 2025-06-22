@@ -5,7 +5,6 @@ This script handles text-based PDFs and cleans up formatting issues.
 """
 
 import PyPDF2
-import re
 import sys
 from pathlib import Path
 

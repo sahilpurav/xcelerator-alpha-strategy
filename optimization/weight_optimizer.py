@@ -9,10 +9,7 @@ import numpy as np
 import os
 from typing import Dict, Tuple, List, Optional
 from contextlib import redirect_stdout
-from datetime import datetime
-
 from .engines import WeightedBacktestEngine
-
 
 class WeightOptimizer:
     """
