@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import datetime
 from utils.market import is_market_open_now
 from utils.market import get_last_trading_day
+from utils.cache import is_caching_enabled, load_from_file, save_to_file
 
 def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: str = "cache/prices") -> bool:
     """
@@ -12,6 +13,12 @@ def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: 
     Also verifies that the cache contains the required historical range if start date is provided.
     Returns True if cache is stale or missing, False otherwise.
     """
+    # Check caching status
+    
+    # If caching is disabled, always return True to force fresh data
+    if not is_caching_enabled():
+        return True
+        
     if not symbols:
         return True
 
@@ -80,7 +87,10 @@ def download_and_cache_prices(
     end = end_dt.strftime('%Y-%m-%d')
 
     live_market = is_market_open_now()
-    os.makedirs(cache_dir, exist_ok=True)
+    
+    # Only create cache directories if caching is enabled
+    if is_caching_enabled():
+        os.makedirs(cache_dir, exist_ok=True)
 
     # Load from cache if everything is valid and fresh
     if not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir) and not live_market:
@@ -89,8 +99,15 @@ def download_and_cache_prices(
         for symbol in symbols:
             try:
                 path = os.path.join(cache_dir, f"{symbol}.csv")
-                df = pd.read_csv(path, parse_dates=["Date"], index_col="Date").sort_index()
-                result[symbol] = df
+                cached_data = load_from_file(path)
+                if cached_data:
+                    df = pd.DataFrame(cached_data)
+                    # Convert Date strings back to datetime and set as index
+                    df["Date"] = pd.to_datetime(df["Date"])
+                    df = df.set_index("Date").sort_index()
+                    result[symbol] = df
+                else:
+                    print(f"⚠️ Cache missing for {symbol}")
             except Exception as e:
                 print(f"⚠️ Failed to load cache for {symbol}: {e}")
         return result
@@ -127,7 +144,9 @@ def download_and_cache_prices(
             result[symbol] = df
 
             if not live_market:
-                df.to_csv(cached_path)
+                # Convert to records for storage
+                records = df.to_dict('records')
+                save_to_file(records, cached_path)
         except Exception as e:
             print(f"⚠️ Failed processing {symbol}: {e}")
             os.remove(cached_path) if os.path.exists(cached_path) else None

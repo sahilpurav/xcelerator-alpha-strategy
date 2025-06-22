@@ -18,3 +18,6 @@ class Config:
     KITE_APP_USERNAME = os.getenv("KITE_APP_USERNAME")
     KITE_APP_PASSWORD = os.getenv("KITE_APP_PASSWORD")
     KITE_APP_TOTP_KEY = os.getenv("KITE_APP_TOTP_KEY")
+    
+    # Application Settings
+    CACHE_ENABLED = os.getenv("CACHE", "true").lower() == "true"

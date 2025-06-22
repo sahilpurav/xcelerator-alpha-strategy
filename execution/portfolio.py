@@ -7,6 +7,7 @@ import typer
 from data.universe_fetcher import get_universe_symbols
 from data.price_fetcher import download_and_cache_prices, is_cache_stale_or_missing
 from utils.market import is_market_strong
+from utils.cache import save_to_file
 
 def run_holdings_display(tsv: bool = False):
     """Display current holdings and their details."""
@@ -137,13 +138,15 @@ def run_rank(
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"ranked-stocks-{date}_{timestamp}.csv"
             
-            # Ensure output directory exists
-            if not os.path.exists("output"):
-                os.makedirs("output")
+            # Use our caching system to save the output
             
             filepath = os.path.join("output", filename)
-            ranked_df.to_csv(filepath, index=False)
-            print(f"📁 Results saved to: {filepath}")
+            # Convert to records for storage
+            records = ranked_df.to_dict('records')
+            if save_to_file(records, filepath):
+                print(f"📁 Results saved to: {filepath}")
+            else:
+                print("⚠️ Caching is disabled - rankings were not saved to disk")
         
     except Exception as e:
         print(f"❌ Ranking failed: {e}")

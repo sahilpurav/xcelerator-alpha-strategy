@@ -8,6 +8,7 @@ from data.price_fetcher import download_and_cache_prices
 from datetime import timedelta
 from utils.market import get_last_trading_day
 from logic.strategy import run_strategy
+from utils.cache import save_to_file
 from logic.planner import (
     plan_portfolio_rebalance, 
     plan_equity_investment, 
@@ -224,11 +225,6 @@ def run_rebalance(
         band,
         cash_equivalent=cash_equivalent.replace(".NS", "")
     )
-    
-    # Store ranked DataFrame in output for reference
-    if not ranked_df.empty:
-        os.makedirs("output", exist_ok=True)
-        ranked_df.to_csv(f"output/ranked-stocks-{get_last_trading_day()}.csv", index=False)
 
     # Step 4: Process recommendations based on market regime
     if market_regime == "WEAK":

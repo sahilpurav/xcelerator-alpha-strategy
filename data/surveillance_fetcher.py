@@ -2,6 +2,7 @@ import requests
 import os
 import json
 from utils.market import get_last_trading_day
+from utils.cache import load_from_file, save_to_file
 
 def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
     """
@@ -18,9 +19,9 @@ def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
     last_trading_date = get_last_trading_day()
     output_file = f"{cache_dir}/{measure}-{last_trading_date}.json"
 
-    if os.path.exists(output_file):
-        with open(output_file, "r") as f:
-            return json.load(f)
+    cached_data = load_from_file(output_file)
+    if cached_data is not None:
+        return cached_data
 
     session = requests.Session()
 
@@ -35,11 +36,10 @@ def _fetch_red_flags(measure: str, cache_dir: str ="cache/filters") -> list:
         response = session.get(f"https://www.nseindia.com/api/report{measure.upper()}?json=true", headers=headers, timeout=10)
 
         if response.status_code == 200:
-            os.makedirs(cache_dir, exist_ok=True)
-            with open(output_file, "w") as f:
-                json.dump(response.json(), f, indent=2)
+            response_data = response.json()
+            save_to_file(response_data, output_file)
             
-            return response.json()
+            return response_data
         else:
             print("Failed status:", response.status_code)
             print("Text:", response.text)

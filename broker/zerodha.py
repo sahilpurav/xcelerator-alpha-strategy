@@ -7,6 +7,7 @@ import re
 import onetimepass as otp
 import time
 from urllib.parse import urlparse, parse_qs
+from utils.cache import load_from_file, save_to_file
 
 
 class ZerodhaBroker:
@@ -24,15 +25,15 @@ class ZerodhaBroker:
 
     def _connect(self):
         # Check if access_token already exists and is valid
-        if os.path.exists(self.token_file):
-            with open(self.token_file, "r") as f:
-                token = f.read().strip()
-                self.kite.set_access_token(token)
-                try:
-                    self.kite.profile()
-                    return
-                except:
-                    print("⚠️  Token invalid, need new login.")
+        access_token = load_from_file(self.token_file)
+        if access_token:
+            self.kite.set_access_token(access_token)
+            try:
+                self.kite.profile()
+                print("✅ Using existing token.")
+                return
+            except:
+                print("⚠️  Token invalid, need new login.")
 
         # Generate new token via login flow
         # print(f"🔗 Visit this URL to get your request token: {self.kite.login_url()}")
@@ -60,11 +61,8 @@ class ZerodhaBroker:
             access_token = session["access_token"]
             self.kite.set_access_token(access_token)
             
-            # ✅ Ensure cache/secrets/ exists before saving
-            os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
-
-            with open(self.token_file, "w") as f:
-                f.write(access_token)
+            # ✅ Save the token using our cache system
+            save_to_file(access_token, self.token_file)
             
             print("✅ Session established and token saved.")
         except Exception as e:

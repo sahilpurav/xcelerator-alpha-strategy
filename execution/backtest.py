@@ -9,6 +9,7 @@ from data.price_fetcher import download_and_cache_prices
 from logic.strategy import run_strategy
 from logic.planner import plan_equity_investment, plan_portfolio_rebalance, plan_move_to_cash_equivalent
 from utils.market import get_last_trading_day
+from utils.cache import save_to_file
 
 class BacktestEngine:
     """
@@ -507,16 +508,25 @@ def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", ban
     
     # Save results to output folder
     if results:
-        os.makedirs("output", exist_ok=True)
         
         # Save portfolio values
-        results["portfolio_values"].to_csv(f"output/backtest-portfolio-{start}-{end_date.strftime('%Y-%m-%d')}.csv")
+        portfolio_file = f"output/backtest-portfolio-{start}-{end_date.strftime('%Y-%m-%d')}.csv"
+        portfolio_records = results["portfolio_values"].to_dict('records')
+        if save_to_file(portfolio_records, portfolio_file):
+            print(f"📁 Portfolio values saved to: {portfolio_file}")
+        else:
+            print("⚠️ Caching is disabled - portfolio values were not saved")
         
         # Save transactions
         transactions_df = results["transactions"]
         if not transactions_df.empty:
-            transactions_df.to_csv(f"output/backtest-transactions-{start}-{end_date.strftime('%Y-%m-%d')}.csv", index=False)
+            transactions_file = f"output/backtest-transactions-{start}-{end_date.strftime('%Y-%m-%d')}.csv"
+            transaction_records = transactions_df.to_dict('records')
+            if save_to_file(transaction_records, transactions_file):
+                print(f"� Transactions saved to: {transactions_file}")
+            else:
+                print("⚠️ Caching is disabled - transactions were not saved")
         
-        print(f"\n💾 Results saved to output/ folder")
+        print(f"\n💾 Results processed")
     
     return results

@@ -2,9 +2,11 @@
 Utility functions for optimization module.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import List, Tuple, Dict
+from utils.cache import save_to_file
 
 
 def validate_weights(weights: Tuple[float, float, float]) -> bool:
@@ -118,16 +120,17 @@ def save_optimization_results(results: Dict, filename: str = None) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"optimization_results_{timestamp}.csv"
     
-    # Ensure output directory exists
     output_dir = "output"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
     filepath = os.path.join(output_dir, filename)
     
     # Save results DataFrame if available
     if 'all_results' in results and results['all_results'] is not None:
-        results['all_results'].to_csv(filepath, index=False)
+        # Convert to records for storage
+        records = results['all_results'].to_dict('records')
+        if save_to_file(records, filepath):
+            print(f"📁 Optimization results saved to: {filepath}")
+        else:
+            print("⚠️ Caching is disabled - optimization results were not saved")
         print(f"📁 Results saved to: {filepath}")
     else:
         print("⚠️ No results DataFrame to save")

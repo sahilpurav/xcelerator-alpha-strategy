@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from optimization import WeightOptimizer
 from optimization.utils import parse_weights_string, generate_test_combinations, save_optimization_results
+from utils.cache import save_to_file
 import typer
 
 def run_optimize_weights(
@@ -103,12 +104,13 @@ def run_compare_weights(
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"weight_comparison_{start}_{end}_{timestamp}.csv"
             
-            # Ensure output directory exists
-            if not os.path.exists("output"):
-                os.makedirs("output")
-            
             filepath = os.path.join("output", filename)
-            results_df.to_csv(filepath, index=False)
+            # Convert to records for storage
+            records = results_df.to_dict('records')
+            if save_to_file(records, filepath):
+                print(f"📁 Results saved to: {filepath}")
+            else:
+                print("⚠️ Caching is disabled - results were not saved to disk")
             print(f"📁 Results saved to: {filepath}")
         
     except Exception as e:
