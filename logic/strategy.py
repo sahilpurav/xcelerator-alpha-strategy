@@ -94,7 +94,34 @@ def run_strategy(
 
     # Determine new entries
     top_n_symbols = ranked_df_work.head(top_n)["symbol"].tolist()
-    new_entries = [s for s in top_n_symbols if s not in held_stocks][: top_n - len(held_stocks)]
+    raw_new_entries = [s for s in top_n_symbols if s not in held_stocks][: top_n - len(held_stocks)]
+
+    # Filter out new entries with >15% jump on rebalance day
+    new_entries = []
+    for symbol in raw_new_entries:
+        symbol_ns = symbol if ".NS" in symbol else f"{symbol}.NS"
+        df = price_data.get(symbol_ns)
+        
+        if df is None or as_of_date not in df.index or len(df[:as_of_date]) < 2:
+            new_entries.append(symbol)
+            continue
+            
+        # Get sorted dates and find previous trading day
+        dates = sorted(df.index)
+        current_idx = dates.index(as_of_date)
+        if current_idx == 0:  # First day in data
+            new_entries.append(symbol)
+            continue
+            
+        prev_close = df.loc[dates[current_idx-1], "Close"]
+        curr_close = df.loc[as_of_date, "Close"]
+        daily_return = (curr_close / prev_close) - 1
+        
+        if daily_return > 0.15:
+            print(f"⚠️ Strategy: Skipping {symbol} on {as_of_date.date()} due to large jump of {daily_return:.2%}")
+        else:
+            new_entries.append(symbol)
+        
     final_portfolio = held_stocks + new_entries
     
     # Create recommendations list
