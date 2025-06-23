@@ -161,7 +161,7 @@ def is_market_strong(price_data: dict[str, pd.DataFrame], benchmark_symbol: str 
         return False
     
     # Check market breadth
-    breadth_ratio = _get_market_breadth_ratio(price_data, dma_period=50, as_of_date=as_of_date)
+    breadth_ratio = _get_market_breadth_ratio(price_data, dma_period=44, as_of_date=as_of_date)
     
     if breadth_ratio < breadth_threshold:
         print(f"Market breadth is weak ({breadth_ratio:.2%} < {breadth_threshold:.0%}), skipping ranking.")
@@ -170,7 +170,7 @@ def is_market_strong(price_data: dict[str, pd.DataFrame], benchmark_symbol: str 
     print(f"💪 Market is strong: Benchmark above EMAs and breadth ratio is {breadth_ratio:.2%}.")
     return True
 
-def _get_market_breadth_ratio(price_data: dict[str, pd.DataFrame], dma_period: int = 50, as_of_date: pd.Timestamp = None) -> float:
+def _get_market_breadth_ratio(price_data: dict[str, pd.DataFrame], dma_period: int = 44, as_of_date: pd.Timestamp = None) -> float:
     """
     Calculates the percentage of stocks trading above their n-day DMA as of a specific date.
     Excludes benchmark indices (^CRSLDX) from the calculation.
