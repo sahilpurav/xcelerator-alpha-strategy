@@ -510,7 +510,7 @@ def plan_move_to_cash_equivalent(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     ranked_df: pd.DataFrame,
-    cash_equivalent: str = "LIQUIDBEES.NS"
+    cash_equivalent: str = "LIQUIDCASE.NS"
 ) -> pd.DataFrame:
     """
     Plans complete exit from all positions when market regime is weak and moves to cash equivalent.
@@ -521,7 +521,7 @@ def plan_move_to_cash_equivalent(
     - price_data: Dict mapping symbols to price DataFrames
     - as_of_date: Date for which price is used
     - ranked_df: DataFrame containing stock rankings (for rank mapping)
-    - cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDBEES.NS")
+    - cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDCASE.NS")
     
     Returns:
     - DataFrame with SELL orders for all positions and BUY order for cash equivalent

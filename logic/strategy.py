@@ -10,7 +10,7 @@ def run_strategy(
     top_n: int = 15,
     band: int = 5,
     weights: Tuple[float, float, float] = (0.8, 0.1, 0.1),
-    cash_equivalent: str = "LIQUIDBEES.NS"
+    cash_equivalent: str = "LIQUIDCASE.NS"
 ) -> Tuple[List[dict], str, List[str], List[str], List[str], List[str], pd.DataFrame]:
     """
     Complete strategy execution: market filter + ranking + portfolio construction.
@@ -23,7 +23,7 @@ def run_strategy(
         top_n: Target number of stocks in portfolio
         band: Band size for determining when to sell held stocks
         weights: Tuple of (return_weight, rsi_weight, proximity_weight) for ranking
-        cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDBEES.NS")
+        cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDCASE.NS")
     
     Returns:
         Tuple of:

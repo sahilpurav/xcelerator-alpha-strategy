@@ -27,7 +27,9 @@ The strategy provides a comprehensive command-line interface for all operations:
 All live trading commands support **dry run mode** using the `--dry-run` flag, which simulates the execution without placing actual orders. This is essential for testing and validation before committing real capital.
 
 #### Capital Withdrawal
+
 Withdraw funds from your existing portfolio:
+
 ```bash
 # Full withdrawal of portfolio
 python cli.py withdraw --full
@@ -42,8 +44,10 @@ python cli.py withdraw --percent 20
 python cli.py withdraw --amount 50000 --dry-run
 ```
 
-#### Weekly Rebalance  
+#### Weekly Rebalance
+
 Execute the core momentum strategy rebalancing:
+
 ```bash
 # Standard rebalance
 python cli.py rebalance
@@ -52,11 +56,13 @@ python cli.py rebalance
 python cli.py rebalance --dry-run
 
 # Custom parameters
-python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDBEES.NS" --rank-day "Wednesday" --dry-run
+python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE.NS" --rank-day "Wednesday" --dry-run
 ```
 
 #### Capital Top-up
+
 Add more capital to existing positions:
+
 ```bash
 # Interactive mode with prompts
 python cli.py topup
@@ -68,7 +74,9 @@ python cli.py topup --amount 50000 --dry-run
 ### 📊 Portfolio Monitoring
 
 #### View Holdings
+
 Display your current portfolio:
+
 ```bash
 # Formatted table view
 python cli.py holdings
@@ -78,7 +86,9 @@ python cli.py holdings --tsv
 ```
 
 #### View Positions
+
 Show current trading positions:
+
 ```bash
 python cli.py positions --tsv
 ```
@@ -86,18 +96,22 @@ python cli.py positions --tsv
 ### 📈 Backtesting & Analysis
 
 #### Historical Backtest
+
 Test the strategy on historical data:
+
 ```bash
 # Basic backtest
 python cli.py backtest --start 2020-01-01
 
 # Custom parameters
 python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
-  --rebalance-day Wednesday --band 7 --cash "LIQUIDBEES.NS"
+  --rebalance-day Wednesday --band 7 --cash "LIQUIDCASE.NS"
 ```
 
 #### Stock Rankings for Specific Date
+
 Get momentum rankings for any historical date:
+
 ```bash
 # Basic ranking for a specific date
 python cli.py rank --date 2024-06-05
@@ -110,34 +124,37 @@ python cli.py rank --date 2024-06-05 --force-refresh
 ```
 
 #### Cache Management
+
 Reset cached data and strategy state:
+
 ```bash
 python cli.py clean
 ```
 
 ### 📋 CLI Parameters Reference
 
-| Command | Key Parameters | Description |
-|---------|----------------|-------------|
-| `withdraw` | `--amount`, `--percent`, `--full`, `--dry-run` | Withdraw capital from portfolio |
-| `rebalance` | `--top-n`, `--band`, `--cash`, `--rank-day`, `--dry-run` | Weekly momentum rebalancing |
-| `topup` | `--amount`, `--dry-run` | Add capital to existing positions (interactive prompt) |
-| `holdings` | `--tsv` | View current portfolio holdings |
-| `positions` | `--tsv` | View current trading positions |
-| `backtest` | `--start`, `--end`, `--rebalance-day`, `--band`, `--cash` | Historical strategy testing |
-| `rank` | `--date`, `--weights`, `--top-n`, `--force-refresh`, `--save-results` | Get stock rankings for specific date |
-| `optimize-weights` | `--start`, `--end`, `--method`, `--step`, `--max-dd`, `--top-n`, `--band`, `--save-results` | Find optimal ranking weights |
-| `compare-weights` | `<weights>`, `--start`, `--end`, `--max-dd`, `--top-n`, `--band`, `--include-common`, `--save-results` | Compare weight combinations |
-| `clean` | - | Reset cached data and state |
+| Command            | Key Parameters                                                                                         | Description                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `withdraw`         | `--amount`, `--percent`, `--full`, `--dry-run`                                                         | Withdraw capital from portfolio                        |
+| `rebalance`        | `--top-n`, `--band`, `--cash`, `--rank-day`, `--dry-run`                                               | Weekly momentum rebalancing                            |
+| `topup`            | `--amount`, `--dry-run`                                                                                | Add capital to existing positions (interactive prompt) |
+| `holdings`         | `--tsv`                                                                                                | View current portfolio holdings                        |
+| `positions`        | `--tsv`                                                                                                | View current trading positions                         |
+| `backtest`         | `--start`, `--end`, `--rebalance-day`, `--band`, `--cash`                                              | Historical strategy testing                            |
+| `rank`             | `--date`, `--weights`, `--top-n`, `--force-refresh`, `--save-results`                                  | Get stock rankings for specific date                   |
+| `optimize-weights` | `--start`, `--end`, `--method`, `--step`, `--max-dd`, `--top-n`, `--band`, `--save-results`            | Find optimal ranking weights                           |
+| `compare-weights`  | `<weights>`, `--start`, `--end`, `--max-dd`, `--top-n`, `--band`, `--include-common`, `--save-results` | Compare weight combinations                            |
+| `clean`            | -                                                                                                      | Reset cached data and state                            |
 
 **Parameter Details:**
+
 - `--dry-run`: Simulates execution without placing live orders (default: False)
 - `--amount`: Capital amount in ₹ (prompted if not provided for topup)
 - `--percent`: Percentage of portfolio to withdraw (1-100)
 - `--full`: Withdraw entire portfolio (for withdraw command)
 - `--top-n`: Number of stocks in portfolio (default: 15 for rebalance, 50 for rank)
 - `--band`: Portfolio stability band - higher values reduce churn (default: 5)
-- `--cash`: Cash equivalent symbol (default: "LIQUIDBEES.NS")
+- `--cash`: Cash equivalent symbol (default: "LIQUIDCASE.NS")
 - `--rank-day`: Day of week for ranking (Monday, Tuesday, etc.)
 - `--tsv`: Output in tab-separated format for spreadsheet import
 
@@ -157,6 +174,7 @@ python cli.py topup --amount 50000 --dry-run
 ```
 
 **Benefits of Dry Run Mode:**
+
 - ✅ **Zero Risk**: No real trades are executed
 - ✅ **Full Simulation**: Complete strategy logic runs as normal
 - ✅ **Order Preview**: See exactly what orders would be placed
@@ -164,6 +182,7 @@ python cli.py topup --amount 50000 --dry-run
 - ✅ **Testing**: Validate strategy behavior before committing capital
 
 **When to Use Dry Run:**
+
 - Before your first live trade
 - When testing new parameters
 - During market volatility periods
@@ -173,6 +192,7 @@ python cli.py topup --amount 50000 --dry-run
 ## ⚖️ Weight Optimization
 
 The strategy uses a composite momentum score based on three factors:
+
 - **Return Rank** (default weight: 0.8) - Stock returns over various periods
 - **RSI Rank** (default weight: 0.1) - Relative Strength Index ranking
 - **Proximity Rank** (default weight: 0.1) - Distance from 52-week high
@@ -216,33 +236,34 @@ python cli.py optimize-weights --start 2020-01-01 --end 2023-12-31 \
 
 ### 📊 Weight Optimization Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--start` | Start date for backtest (YYYY-MM-DD) | Required |
-| `--end` | End date for backtest | Today |
-| `--method` | Optimization method: `grid` or `scipy` | `grid` |
-| `--step` | Grid search step size (0.05=fine, 0.1=normal, 0.2=coarse) | `0.1` |
-| `--max-dd` | Maximum allowed drawdown percentage | `-20.0` |
-| `--top-n` | Number of stocks in portfolio | `15` |
-| `--band` | Band size for portfolio stability | `5` |
-| `--include-common` | Include predefined weight combinations | `false` |
-| `--save-results` | Save results to CSV file | `true` |
+| Parameter          | Description                                               | Default  |
+| ------------------ | --------------------------------------------------------- | -------- |
+| `--start`          | Start date for backtest (YYYY-MM-DD)                      | Required |
+| `--end`            | End date for backtest                                     | Today    |
+| `--method`         | Optimization method: `grid` or `scipy`                    | `grid`   |
+| `--step`           | Grid search step size (0.05=fine, 0.1=normal, 0.2=coarse) | `0.1`    |
+| `--max-dd`         | Maximum allowed drawdown percentage                       | `-20.0`  |
+| `--top-n`          | Number of stocks in portfolio                             | `15`     |
+| `--band`           | Band size for portfolio stability                         | `5`      |
+| `--include-common` | Include predefined weight combinations                    | `false`  |
+| `--save-results`   | Save results to CSV file                                  | `true`   |
 
 ### 📊 Stock Ranking Parameters
 
 The `rank` command provides detailed momentum rankings for any historical date:
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--date` | Date for ranking calculation (YYYY-MM-DD) | Required |
-| `--weights` | Ranking weights as 'return,rsi,proximity' (must sum to 1.0) | `0.8,0.1,0.1` |
-| `--top-n` | Number of top stocks to display | `50` |
-| `--save-results` | Save results to CSV file | `true` |
-| `--force-refresh` | Force cache refresh even if data exists | `false` |
+| Parameter         | Description                                                 | Default       |
+| ----------------- | ----------------------------------------------------------- | ------------- |
+| `--date`          | Date for ranking calculation (YYYY-MM-DD)                   | Required      |
+| `--weights`       | Ranking weights as 'return,rsi,proximity' (must sum to 1.0) | `0.8,0.1,0.1` |
+| `--top-n`         | Number of top stocks to display                             | `50`          |
+| `--save-results`  | Save results to CSV file                                    | `true`        |
+| `--force-refresh` | Force cache refresh even if data exists                     | `false`       |
 
 **Weight Components:**
+
 - **Return Weight**: Importance of multi-timeframe returns (22, 44, 66 days)
-- **RSI Weight**: Importance of multi-timeframe RSI momentum (22, 44, 66 days)  
+- **RSI Weight**: Importance of multi-timeframe RSI momentum (22, 44, 66 days)
 - **Proximity Weight**: Importance of proximity to 52-week high
 
 **Cache Intelligence:**
@@ -251,7 +272,7 @@ The command automatically ensures 400 days of historical data is available befor
 ### 💡 Weight Optimization Tips
 
 - **Start with coarse search**: Use `--step 0.2` for quick exploration
-- **Refine promising areas**: Use `--step 0.05` around good combinations  
+- **Refine promising areas**: Use `--step 0.05` around good combinations
 - **Consider time periods**: Optimal weights may vary across market cycles
 - **Balance risk vs return**: Higher return weights often increase both CAGR and drawdown
 - **Use scipy for fine-tuning**: After grid search identifies good regions

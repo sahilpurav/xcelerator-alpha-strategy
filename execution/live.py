@@ -173,7 +173,7 @@ def run_withdraw(
 def run_rebalance(
     top_n: int = 15, 
     band: int = 5, 
-    cash_equivalent: str = "LIQUIDBEES.NS",
+    cash_equivalent: str = "LIQUIDCASE.NS",
     rank_day: Optional[str] = None,
     dry_run: bool = False
 ):
@@ -227,7 +227,7 @@ def run_rebalance(
     }
 
     # Step 3: Run strategy to get all needed information in one call
-    recommendations, market_regime, held, new_entries, removed_stocks, _, ranked_df = run_strategy(
+    recommendations, market_regime, held, _, _, _, ranked_df = run_strategy(
         price_data_for_ranking,
         ranking_date,  # Use ranking_date for strategy decisions
         held_symbols,
@@ -252,7 +252,7 @@ def run_rebalance(
         exec_df = plan_move_to_cash_equivalent(
             previous_holdings=previous_holdings,
             price_data=price_data,
-            as_of_date=exec_date,  # Use execution date for pricing
+            as_of_date=exec_date,
             ranked_df=ranked_df,
             cash_equivalent=cash_equivalent
         )
