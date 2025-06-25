@@ -11,6 +11,9 @@ yfinance
 # Environment variable loader
 python-dotenv
 
+# Package Upgrade
+pip-review
+
 # Broker API
 kiteconnect
 onetimepass

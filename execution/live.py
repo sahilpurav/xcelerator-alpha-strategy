@@ -223,7 +223,7 @@ def run_rebalance(
     # Filter out non-universe prices before ranking
     price_data_for_ranking = {
         symbol: df for symbol, df in price_data.items()
-        if symbol in universe_symbols or symbol == "^CRSLDX" or symbol == cash_symbol
+        if symbol in universe_symbols or symbol == "^CRSLDX" or symbol == cash_symbol.replace(".NS", "")
     }
 
     # Step 3: Run strategy to get all needed information in one call
