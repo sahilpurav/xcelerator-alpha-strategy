@@ -7,7 +7,7 @@ from utils.market import is_market_open_now
 from utils.market import get_last_trading_date
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
 
-def is_cache_stale_or_missing(symbols: list[str], start: str = None, cache_dir: str = "cache/prices") -> bool:
+def is_cache_stale_or_missing(symbols: list[str], start: str | None = None, cache_dir: str = "cache/prices") -> bool:
     """
     Checks if the cache for the given symbols is stale or missing.
     Also verifies that the cache contains the required historical range if start date is provided.

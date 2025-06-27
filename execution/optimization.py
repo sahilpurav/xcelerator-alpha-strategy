@@ -7,7 +7,7 @@ import typer
 
 def run_optimize_weights(
     start: str,
-    end: str,
+    end: str | None,
     method: str,
     step: float,
     max_dd: float,
@@ -55,7 +55,7 @@ def run_optimize_weights(
 def run_compare_weights(
     weights: list,
     start: str,
-    end: str,
+    end: str | None,
     max_dd: float,
     top_n: int,
     band: int,

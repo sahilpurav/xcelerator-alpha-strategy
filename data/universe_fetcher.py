@@ -5,7 +5,7 @@ from io import StringIO
 from typing import Tuple
 from utils.cache import load_from_file, save_to_file, is_caching_enabled
 
-def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache/universe") -> Tuple[list[str]]:
+def get_universe_symbols(universe: str = "nifty500", cache_dir: str = "cache/universe") -> list[str]:
     """
     Fetch and cache stock symbols from NSE for a given universe.
 

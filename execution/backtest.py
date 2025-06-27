@@ -254,7 +254,7 @@ class BacktestEngine:
             action_df = exec_df[exec_df["Action"] == action]
             
             for _, row in action_df.iterrows():
-                symbol = row["Symbol"]
+                symbol = str(row["Symbol"])
                 quantity = int(row["Quantity"])
                 price = float(row["Price"])
                 
@@ -479,7 +479,7 @@ def wrap_symbols(symbols: List[str], width: int = 65) -> str:
     
     return "\n               ".join(lines)  # Align with the label spacing
 
-def run_backtest(start: str, end: str = None, rebalance_day: str = "Friday", band: int = 5, cash_equivalent: str = "LIQUIDBEES.NS"):
+def run_backtest(start: str, end: str | None = None, rebalance_day: str = "Wednesday", band: int = 5, cash_equivalent: str = "LIQUIDBEES.NS"):
     """
     Main entry point for backtesting from CLI.
     This function will be executed when you run `python cli.py backtest`
