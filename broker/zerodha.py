@@ -148,6 +148,14 @@ class ZerodhaBroker:
 
         return list(holdings.values())
     
+    def ltp(self, symbols):
+        """
+        Fetches the latest LTP (Last Traded Price) for a list of symbols.
+        Returns a dict with symbol as key and its LTP as value.
+        """
+        ltp_data = self.kite.ltp(["NSE:" + symbol for symbol in symbols])
+        return {symbol.replace("NSE:", ""): data["last_price"] for symbol, data in ltp_data.items()}
+    
     def cash(self):
         """
         Fetches current cash balance from Zerodha and returns

@@ -374,8 +374,6 @@ def plan_portfolio_rebalance(
     - Avoid trimming or over allocating
     - Apply 1-stock fallback for leftover capital
     """
-    import pandas as pd
-
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
@@ -390,16 +388,6 @@ def plan_portfolio_rebalance(
     }
 
     prev_df = pd.DataFrame(previous_holdings)
-
-    """
-    Price overriding logic:
-    - For live trading, use real-time prices from the broker instead of historical prices from yfinance
-    - For back testing, use the last known price until today's date from historical prices.
-    """
-    today = pd.Timestamp.now().normalize()
-    if as_of_date >= today and not prev_df.empty and "last_price" in prev_df.columns:
-        for _, row in prev_df.iterrows():
-            latest_close[row["symbol"]] = np.float64(row["last_price"])
 
     if prev_df.empty:
         return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])

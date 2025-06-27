@@ -268,7 +268,24 @@ def run_rebalance(
         if not recommendations:
             print("✅ Portfolio is already optimal. No changes needed.")
             return
-            
+        
+                # No recommendations means no change needed
+        if not recommendations:
+            print("✅ Portfolio is already optimal. No changes needed.")
+            return
+        
+        # Try to update the price_data with today's live prices
+        try:
+            relevant_symbols = list(set(held + buy_symbols + sell_symbols))
+            live_prices = broker.ltp(relevant_symbols)
+            for symbol in relevant_symbols:
+                symbol_with_ns = f"{symbol}.NS"
+                if symbol in live_prices and symbol_with_ns in price_data:
+                    latest_date = price_data[symbol_with_ns].index.max()
+                    price_data[symbol_with_ns].loc[latest_date, 'Close'] = live_prices[symbol]
+        except Exception as e:
+            print(f"❌ Failed to fetch live prices: {e} falling back to yfinance data.")
+
         # Generate rebalance plan
         exec_df = plan_portfolio_rebalance(
             held_stocks=held,
