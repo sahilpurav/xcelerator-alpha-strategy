@@ -179,7 +179,7 @@ def run_rebalance(
 ):
     """
     Runs the weekly rebalance for Xcelerator Alpha Strategy with market regime check.
-    In strong markets, rebalances the portfolio based on momentum rankings.
+    In strong markets, rebalance the portfolio based on momentum rankings.
     In weak markets, moves portfolio to cash equivalent.
     
     Args:

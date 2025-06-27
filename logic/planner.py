@@ -1,5 +1,6 @@
 import pandas as pd
 import math
+import numpy as np
 
 # Capital Allocation Strategy Functions:
 # _fill_underweight_gaps_only() - Conservative: Fill gaps only (for rebalance)
@@ -370,7 +371,7 @@ def plan_portfolio_rebalance(
     Rebalance logic fully aligned with user's 5-point vision.
     - Fund new entries first to match equal-weight target
     - Allocate leftover capital to underweight holdings
-    - Avoid trimming or overallocating
+    - Avoid trimming or over allocating
     - Apply 1-stock fallback for leftover capital
     """
     import pandas as pd
@@ -381,6 +382,7 @@ def plan_portfolio_rebalance(
     ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
     rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
 
+    # Build latest_close from historical price data
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
@@ -388,7 +390,17 @@ def plan_portfolio_rebalance(
     }
 
     prev_df = pd.DataFrame(previous_holdings)
-    
+
+    """
+    Price overriding logic:
+    - For live trading, use real-time prices from the broker instead of historical prices from yfinance
+    - For back testing, use the last known price until today's date from historical prices.
+    """
+    today = pd.Timestamp.now().normalize()
+    if as_of_date >= today and not prev_df.empty and "last_price" in prev_df.columns:
+        for _, row in prev_df.iterrows():
+            latest_close[row["symbol"]] = np.float64(row["last_price"])
+
     if prev_df.empty:
         return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])
     
@@ -700,9 +712,3 @@ def plan_capital_withdrawal(
                 })
     
     return pd.DataFrame(execution_data)
-
-# Keep compatibility with old function names
-plan_initial_investment = plan_equity_investment
-plan_top_up_investment = plan_capital_addition 
-plan_rebalance_investment = plan_portfolio_rebalance
-plan_exit_all_positions = plan_move_to_cash_equivalent

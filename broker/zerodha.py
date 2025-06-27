@@ -34,10 +34,6 @@ class ZerodhaBroker:
                 return
             except:
                 print("⚠️  Token invalid, need new login.")
-
-        # Generate new token via login flow
-        # print(f"🔗 Visit this URL to get your request token: {self.kite.login_url()}")
-        # request_token = typer.prompt("🔑 Paste request_token from redirected URL")
         
         print("🔗 Generating new session via login flow...")
         credentials = {
@@ -53,7 +49,7 @@ class ZerodhaBroker:
         if missing_keys:
             raise ValueError(f"❌ Missing or empty credentials for: {', '.join(missing_keys)}") 
         
-        request_token = self.get_request_token(credentials);
+        request_token = self.get_request_token(credentials)
         
 
         try:
@@ -180,10 +176,17 @@ class ZerodhaBroker:
         except Exception as e:
             print(f"❌ Failed to place order for {symbol}: {e}")
             return None
-        
-    
 
     def get_request_token(self, credentials: dict) -> str:
+        """
+        Handles the login flow to get a request token for Zerodha Kite API.
+        This method performs the following steps:
+        1. Initiates a session and fetches the login page.
+        2. Submits the user credentials (username and password).
+        3. Calculates the TOTP timing to avoid expiration.
+        4. Submits the TOTP code for two-factor authentication.
+        5. Extracts the request token from the redirect URL after successful login.
+        """
         session = requests.Session()
         response = session.get(self.kite.login_url())
 
@@ -198,8 +201,8 @@ class ZerodhaBroker:
         current_time = int(time.time())
         time_window = current_time % 30  # Position within current 30-second window
 
-        # If we're in the last 5 seconds of the window, wait for the next window
-        if time_window > 25:
+        # If we're in the last 10 seconds of the window, wait for the next window
+        if time_window > 20:
             wait_time = 30 - time_window + 1  # Wait for next window + 1 second buffer
             print(f"⏳ TOTP window expires in {30 - time_window} seconds, waiting {wait_time} seconds for fresh token...")
             time.sleep(wait_time)
@@ -214,27 +217,20 @@ class ZerodhaBroker:
         }
         totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
 
-        
         if totp_response.status_code != 200:
-            # print("❌ Failed to login. Please check your credentials.")
             raise RuntimeError(f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}")
-            typer.Exit(code=1)
-        
-        # print (totp_response)
-        # exit(0)
 
         # Extract request token from redirect URL
         try:
             response = session.get(self.kite.login_url())
             parse_result = urlparse(response.url)
-            query_parms = parse_qs(parse_result.query)
+            query_params = parse_qs(parse_result.query)
         
-            if "request_token" not in query_parms:
+            if "request_token" not in query_params:
                 raise RuntimeError("Login succeeded but request_token not found in URL.")
-
             
         except Exception as e:
-            # in our case since the local server is not running, we will get an exception
+            # In our case since the local server is not running, we will get an exception
             # This is a workaround to extract the request token from the error response
             # Uncomment the next line to see the full error message
             
@@ -242,11 +238,9 @@ class ZerodhaBroker:
             pattern = r"request_token=([A-Za-z0-9]+)"            
             match = re.search(pattern, str(e))
             if match:
-                query_parms = {"request_token": [match.group(1)]}
+                query_params = {"request_token": [match.group(1)]}
             else:
                 raise RuntimeError("Unable to extract request token from error response.")
 
-        request_token = query_parms["request_token"][0]
-
-        return request_token
+        return query_params["request_token"][0]
     

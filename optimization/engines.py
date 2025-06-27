@@ -6,7 +6,7 @@ import pandas as pd
 from typing import Tuple, Dict, List
 from execution.backtest import BacktestEngine
 from logic.ranking import rank
-from logic.planner import plan_initial_investment, plan_rebalance_investment, plan_exit_all_positions
+from logic.planner import plan_equity_investment, plan_portfolio_rebalance, plan_move_to_cash_equivalent
 from utils.market import is_market_strong
 
 
@@ -82,7 +82,7 @@ class WeightedBacktestEngine(BacktestEngine):
         selected_symbols = top_n_df["symbol"].tolist()
         
         # Generate execution plan
-        exec_df = plan_initial_investment(
+        exec_df = plan_equity_investment(
             symbols=selected_symbols,
             price_data=price_data,
             as_of_date=date,
@@ -118,7 +118,7 @@ class WeightedBacktestEngine(BacktestEngine):
         # Check if we need to exit all positions (weak market)
         if not held and not new_entries and removed == held_symbols:
             # Plan complete exit
-            exec_df = plan_exit_all_positions(
+            exec_df = plan_move_to_cash_equivalent(
                 previous_holdings=previous_holdings,
                 price_data=price_data,
                 as_of_date=date,
@@ -134,7 +134,7 @@ class WeightedBacktestEngine(BacktestEngine):
             return True, pd.DataFrame()
 
         # Generate execution plan
-        exec_df = plan_rebalance_investment(
+        exec_df = plan_portfolio_rebalance(
             held_stocks=held,
             new_entries=new_entries,
             removed_stocks=removed,

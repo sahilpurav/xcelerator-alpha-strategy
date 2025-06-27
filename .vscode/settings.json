@@ -1,17 +1,19 @@
 {
-    "cSpell.words": [
-        "backtest",
-        "dotenv",
-        "kiteconnect",
-        "LIQUIDBEES",
-        "LIQUIDCASE",
-        "longterm",
-        "lookback",
-        "NSEI",
-        "rsis",
-        "shortterm",
-        "topup",
-        "tradingsymbol",
-        "Xcelerator"
-    ]
+  "cSpell.words": [
+    "backtest",
+    "dotenv",
+    "kiteconnect",
+    "LIQUIDBEES",
+    "LIQUIDCASE",
+    "longterm",
+    "lookback",
+    "NSEI",
+    "rsis",
+    "shortterm",
+    "topup",
+    "TOTP",
+    "tradingsymbol",
+    "twofa",
+    "Xcelerator"
+  ]
 }
