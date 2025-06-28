@@ -1,6 +1,5 @@
 import math
 
-import numpy as np
 import pandas as pd
 
 # Capital Allocation Strategy Functions:
@@ -74,19 +73,19 @@ def plan_equity_investment(
                 continue
 
             # Account for transaction costs in quantity calculation
-            effective_price = price * (1 + transaction_cost_pct)
+            effective_price = float(price) * (1 + transaction_cost_pct)
             qty = math.floor(adjusted_per_stock_alloc / effective_price)
             if qty == 0:
                 continue
 
-            invested = round(qty * price, 2)
+            invested = round(qty * float(price), 2)
 
             execution_data.append(
                 {
                     "Symbol": sym_clean,
                     "Rank": rank_map.get(sym_clean, "N/A"),
                     "Action": "BUY",
-                    "Price": round(price, 2),
+                    "Price": round(float(price), 2),
                     "Quantity": qty,
                     "Invested": invested,
                 }
@@ -98,6 +97,7 @@ def plan_equity_investment(
         df_exec["Weight %"] = df_exec["Invested"] / total_value * 100
     else:
         df_exec = pd.DataFrame(
+            data=[],
             columns=[
                 "Symbol",
                 "Rank",
@@ -372,6 +372,7 @@ def plan_capital_addition(
 
     if not rows:
         return pd.DataFrame(
+            data=[],
             columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"]
         )
 
@@ -389,7 +390,16 @@ def plan_capital_addition(
         return df_exec
     else:
         return pd.DataFrame(
-            columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"]
+            data=[],
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
         )
 
 
@@ -415,6 +425,7 @@ def plan_portfolio_rebalance(
 
     if prev_df.empty or "symbol" not in prev_df.columns or "quantity" not in prev_df.columns:
         return pd.DataFrame(
+            data=[],
             columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
         )
 
@@ -548,7 +559,7 @@ def plan_portfolio_rebalance(
         ["Symbol", "Rank", "Action", "Price"], as_index=False
     ).agg({"Quantity": "sum", "Invested": "sum"})
     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
-    df_exec["Weight %"] = df_exec.apply(
+    df_exec.loc[:, "Weight %"] = df_exec.apply(
         lambda row: (
             round((row["Invested"] / total_value) * 100, 2)
             if row["Action"] != "SELL"
@@ -583,6 +594,7 @@ def plan_move_to_cash_equivalent(
     """
     if not previous_holdings:
         return pd.DataFrame(
+            data=[],
             columns=[
                 "Symbol",
                 "Rank",
@@ -677,6 +689,7 @@ def plan_move_to_cash_equivalent(
         pd.DataFrame(execution_data)
         if execution_data
         else pd.DataFrame(
+            data=[],
             columns=[
                 "Symbol",
                 "Rank",
@@ -694,8 +707,8 @@ def plan_capital_withdrawal(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
-    amount: float = None,
-    percentage: float = None,
+    amount: float | None = None,
+    percentage: float | None = None,
     full: bool = False,
     transaction_cost_pct: float = 0.001190,
 ) -> pd.DataFrame:
@@ -716,6 +729,7 @@ def plan_capital_withdrawal(
     """
     if not previous_holdings:
         return pd.DataFrame(
+            data=[],
             columns=[
                 "Symbol",
                 "Rank",
@@ -749,6 +763,7 @@ def plan_capital_withdrawal(
         withdrawal_amount = amount
     else:
         return pd.DataFrame(
+            data=[],
             columns=[
                 "Symbol",
                 "Rank",
@@ -802,11 +817,10 @@ def plan_capital_withdrawal(
                         "Symbol": symbol,
                         "Rank": "N/A",
                         "Action": "SELL",
-                        "Price": round(price, 2),
+                        "Price": round(float(price), 2),
                         "Quantity": sell_qty,
-                        "Invested": round(sell_qty * price, 2),
+                        "Invested": round(float(sell_qty * price), 2),
                         "Weight %": 0.0,
-                    }
                 )
 
     return pd.DataFrame(execution_data)

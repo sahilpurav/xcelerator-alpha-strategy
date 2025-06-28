@@ -3,6 +3,7 @@ typer
 
 # Data handling
 pandas
+pandas-stubs
 numpy
 
 # Yahoo Finance for price data
