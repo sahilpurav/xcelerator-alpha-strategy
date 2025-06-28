@@ -113,7 +113,7 @@ def plan_equity_investment(
 
 
 def _fill_underweight_gaps_only(
-    targets: list[dict], total_capital: float, transaction_cost_pct: float = 0.001190
+    targets: list[dict], total_capital: float, target_weight_value: float, rank_map: dict = None
 ) -> list[dict]:
     """
     Conservative allocation strategy: Only fills gaps for underweight holdings.
@@ -123,20 +123,19 @@ def _fill_underweight_gaps_only(
     underweight gaps and doesn't attempt to maximize capital deployment.
 
     Strategy:
-    - Only targets underweight holdings (current_value < target_weight)
-    - Distributes capital proportionally to the gap size
+    - Only targets underweight holdings (current_value < target_weight_value)
+    - Sorts by gap size (largest gaps first) and fills sequentially
     - Conservative approach - no aggressive deployment
-    - Transaction costs are accounted for in quantity calculation
 
     Parameters:
     - targets: List of dicts with keys 'symbol', 'price', 'current_value'
     - total_capital: Total capital available for allocation
-    - transaction_cost_pct: Percentage of transaction cost per trade (default 0.119%)
+    - target_weight_value: Target weight value for each stock (already calculated)
+    - rank_map: Dictionary mapping symbols to their ranks (optional)
 
     Returns:
-    - List of dicts with keys: Symbol, Action, Price, Quantity, Invested
+    - List of dicts with keys: Symbol, Rank, Action, Price, Quantity, Invested
     """
-    import pandas as pd
 
     # Handle empty targets list
     if not targets:
@@ -150,44 +149,48 @@ def _fill_underweight_gaps_only(
     if missing_cols:
         return []
 
-    total_value = df["current_value"].sum() + total_capital
-    target_weight = total_value / len(df)
-
-    # Filter only underweight holdings
-    df = df[df["current_value"] < target_weight].copy()
-    df["gap"] = target_weight - df["current_value"]
-    total_gap = df["gap"].sum()
-
+    # Filter only underweight holdings (should already be filtered, but double-check)
+    df = df[df["current_value"] < target_weight_value].copy()
+    df["gap"] = target_weight_value - df["current_value"]
+    
+    # Sort by gap size (largest gaps first)
+    df.sort_values("gap", inplace=True, ascending=False)
+    
     execution_data = []
-    capital_used = 0
+    remaining_capital = total_capital
 
+    # Try to fill each stock sequentially, starting with largest gaps
     for _, row in df.iterrows():
-        alloc = total_capital * (row["gap"] / total_gap) if total_gap > 0 else 0
-        remaining_budget = total_capital - capital_used
-
-        # Account for transaction cost in price calculation
-        effective_price = row["price"] * (1 + transaction_cost_pct)
-        est_qty = min(
-            int(alloc // effective_price), int(remaining_budget // effective_price)
-        )
-        est_invested = (
-            est_qty * row["price"]
-        )  # Original price for actual investment amount
-
-        # Only allocate if quantity is positive
-        if est_qty > 0:
+        if remaining_capital <= 0:
+            break
+            
+        symbol = row["symbol"]
+        price = row["price"]
+        gap = row["gap"]
+        
+        # Calculate how many shares we can buy with remaining capital
+        max_shares = int(remaining_capital // price)
+        
+        # Calculate how many shares we need to fill the gap
+        shares_needed = int(gap // price)
+        
+        # Buy the minimum of what we can afford and what we need
+        shares_to_buy = min(max_shares, shares_needed)
+        
+        if shares_to_buy > 0:
+            invested = shares_to_buy * price
+            remaining_capital -= invested
+            
             execution_data.append(
                 {
-                    "Symbol": row["symbol"],
+                    "Symbol": symbol,
+                    "Rank": rank_map.get(symbol, "N/A") if rank_map else "N/A",
                     "Action": "BUY",
-                    "Price": round(row["price"], 2),
-                    "Quantity": est_qty,
-                    "Invested": round(est_invested, 2),
+                    "Price": round(price, 2),
+                    "Quantity": shares_to_buy,
+                    "Invested": round(invested, 2),
                 }
             )
-            capital_used += est_invested * (
-                1 + transaction_cost_pct
-            )  # Include transaction cost in used capital
 
     return execution_data
 
@@ -493,7 +496,7 @@ def plan_portfolio_rebalance(
             used += invested
 
     remaining = freed_capital - used
-
+    # print(f"Remaining capital before underweight allocation: {remaining}")
     # Step 2: Allocate remaining to underweight holdings
     held_targets = []
     if (
@@ -511,33 +514,10 @@ def plan_portfolio_rebalance(
                     }
                 )
 
-    held_exec = _fill_underweight_gaps_only(held_targets, remaining)
+    held_exec = _fill_underweight_gaps_only(held_targets, remaining, target_weight_value, rank_map)
+    print(f"Held exec: {held_exec}")
     used += sum(row["Invested"] for row in held_exec)
     remaining = freed_capital - used
-
-    # Step 3: Fallback allocation via 1-share to cheapest unused symbol
-    all_allocated = {r["Symbol"] for r in new_entries_exec + held_exec + execution_data}
-    all_final = set(held_stocks + new_entries)
-    fallback_universe = sorted(
-        [s for s in all_final if s not in all_allocated and latest_close.get(s)],
-        key=lambda s: latest_close[s],
-    )
-    for sym in fallback_universe:
-        price = latest_close[sym]
-        qty = int(remaining // price)
-        if qty > 0:
-            invested = qty * price
-            execution_data.append(
-                {
-                    "Symbol": sym,
-                    "Rank": rank_map.get(sym, "N/A"),
-                    "Action": "BUY",
-                    "Price": round(price, 2),
-                    "Quantity": qty,
-                    "Invested": round(invested, 2),
-                }
-            )
-            break
 
     execution_data.extend(new_entries_exec)
     execution_data.extend(held_exec)
@@ -821,6 +801,7 @@ def plan_capital_withdrawal(
                         "Quantity": sell_qty,
                         "Invested": round(float(sell_qty * price), 2),
                         "Weight %": 0.0,
+                    }
                 )
 
     return pd.DataFrame(execution_data)
