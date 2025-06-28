@@ -2,10 +2,6 @@ import math
 
 import pandas as pd
 
-# Capital Allocation Strategy Functions:
-# _fill_underweight_gaps_only() - Conservative: Fill gaps only (for rebalance)
-# _maximize_capital_deployment() - Aggressive: 3-step deployment (for top-ups)
-
 
 def plan_equity_investment(
     symbols: list[str],
@@ -496,7 +492,7 @@ def plan_portfolio_rebalance(
             used += invested
 
     remaining = freed_capital - used
-    # print(f"Remaining capital before underweight allocation: {remaining}")
+
     # Step 2: Allocate remaining to underweight holdings
     held_targets = []
     if (
@@ -515,9 +511,32 @@ def plan_portfolio_rebalance(
                 )
 
     held_exec = _fill_underweight_gaps_only(held_targets, remaining, target_weight_value, rank_map)
-    print(f"Held exec: {held_exec}")
     used += sum(row["Invested"] for row in held_exec)
     remaining = freed_capital - used
+
+    # Step 3: Fallback allocation via 1-share to cheapest unused symbol
+    all_allocated = {r["Symbol"] for r in new_entries_exec + held_exec + execution_data}
+    all_final = set(held_stocks + new_entries)
+    fallback_universe = sorted(
+        [s for s in all_final if s not in all_allocated and latest_close.get(s)],
+        key=lambda s: latest_close[s],
+    )
+    for sym in fallback_universe:
+        price = latest_close[sym]
+        qty = int(remaining // price)
+        if qty > 0:
+            invested = qty * price
+            execution_data.append(
+                {
+                    "Symbol": sym,
+                    "Rank": rank_map.get(sym, "N/A"),
+                    "Action": "BUY",
+                    "Price": round(price, 2),
+                    "Quantity": qty,
+                    "Invested": round(invested, 2),
+                }
+            )
+            break
 
     execution_data.extend(new_entries_exec)
     execution_data.extend(held_exec)
