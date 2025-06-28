@@ -1,12 +1,14 @@
 import os
-from kiteconnect import KiteConnect
-from config import Config
-import typer
-import requests
 import re
-import onetimepass as otp
 import time
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
+
+import onetimepass as otp
+import requests
+import typer
+from kiteconnect import KiteConnect
+
+from config import Config
 from utils.cache import load_from_file, save_to_file
 
 
@@ -19,7 +21,7 @@ class ZerodhaBroker:
         self.app_totp_key = Config.KITE_APP_TOTP_KEY
         self.token_file = os.path.join("cache/secrets", "zerodha_access_token.txt")
         self.kite = KiteConnect(api_key=self.api_key)
-        
+
         # auto connect on init
         self._connect()
 
@@ -34,7 +36,7 @@ class ZerodhaBroker:
                 return
             except:
                 print("⚠️  Token invalid, need new login.")
-        
+
         print("🔗 Generating new session via login flow...")
         credentials = {
             "username": self.app_user_name,
@@ -47,19 +49,22 @@ class ZerodhaBroker:
         # ✅ Validation: check for missing or empty values
         missing_keys = [key for key, value in credentials.items() if not value]
         if missing_keys:
-            raise ValueError(f"❌ Missing or empty credentials for: {', '.join(missing_keys)}") 
-        
+            raise ValueError(
+                f"❌ Missing or empty credentials for: {', '.join(missing_keys)}"
+            )
+
         request_token = self.get_request_token(credentials)
-        
 
         try:
-            session = self.kite.generate_session(request_token, api_secret=self.api_secret)
+            session = self.kite.generate_session(
+                request_token, api_secret=self.api_secret
+            )
             access_token = session["access_token"]
             self.kite.set_access_token(access_token)
-            
+
             # ✅ Save the token using our cache system
             save_to_file(access_token, self.token_file)
-            
+
             print("✅ Session established and token saved.")
         except Exception as e:
             print(f"❌ Error generating session: {e}")
@@ -80,12 +85,14 @@ class ZerodhaBroker:
             if qty == 0:
                 continue
 
-            rows.append({
-                "symbol": pos.get("tradingsymbol"),
-                "action": "BUY" if qty > 0 else "SELL",
-                "buy_price": pos.get("average_price"),
-                "quantity": qty
-            })
+            rows.append(
+                {
+                    "symbol": pos.get("tradingsymbol"),
+                    "action": "BUY" if qty > 0 else "SELL",
+                    "buy_price": pos.get("average_price"),
+                    "quantity": qty,
+                }
+            )
 
         return rows
 
@@ -100,7 +107,7 @@ class ZerodhaBroker:
 
         # # Filter out SGB holdings -- TODO: remove this later
         # holdings_raw = [entry for entry in holdings_raw if not entry['tradingsymbol'].startswith('SGB')]
-        
+
         holdings = {}
 
         # Step 1: Start with holdings (quantity + t1)
@@ -112,7 +119,7 @@ class ZerodhaBroker:
                     "symbol": symbol,
                     "quantity": total_qty,
                     "buy_price": h["average_price"],
-                    "last_price": h["last_price"]
+                    "last_price": h["last_price"],
                 }
 
         # Step 2: Add or merge CNC positions (same-day buys)
@@ -130,32 +137,37 @@ class ZerodhaBroker:
                 existing = holdings[symbol]
                 total_qty = existing["quantity"] + qty
                 # Weighted average buy price
-                total_invested = (existing["quantity"] * existing["buy_price"]) + (qty * price)
+                total_invested = (existing["quantity"] * existing["buy_price"]) + (
+                    qty * price
+                )
                 avg_price = total_invested / total_qty
                 holdings[symbol] = {
                     "symbol": symbol,
                     "quantity": total_qty,
                     "buy_price": avg_price,
-                    "last_price": last_price
+                    "last_price": last_price,
                 }
             else:
                 holdings[symbol] = {
                     "symbol": symbol,
                     "quantity": qty,
                     "buy_price": price,
-                    "last_price": last_price
+                    "last_price": last_price,
                 }
 
         return list(holdings.values())
-    
+
     def ltp(self, symbols):
         """
         Fetches the latest LTP (Last Traded Price) for a list of symbols.
         Returns a dict with symbol as key and its LTP as value.
         """
         ltp_data = self.kite.ltp(["NSE:" + symbol for symbol in symbols])
-        return {symbol.replace("NSE:", ""): data["last_price"] for symbol, data in ltp_data.items()}
-    
+        return {
+            symbol.replace("NSE:", ""): data["last_price"]
+            for symbol, data in ltp_data.items()
+        }
+
     def cash(self):
         """
         Fetches current cash balance from Zerodha and returns
@@ -168,7 +180,9 @@ class ZerodhaBroker:
             print(f"❌ Failed to fetch available funds: {e}")
             return None
 
-    def place_market_order(self, symbol, quantity, exchange="NSE", transaction_type="BUY"):
+    def place_market_order(
+        self, symbol, quantity, exchange="NSE", transaction_type="BUY"
+    ):
         try:
             order_id = self.kite.place_order(
                 variety=self.kite.VARIETY_REGULAR,
@@ -177,7 +191,7 @@ class ZerodhaBroker:
                 transaction_type=transaction_type,
                 quantity=quantity,
                 order_type=self.kite.ORDER_TYPE_MARKET,
-                product=self.kite.PRODUCT_CNC
+                product=self.kite.PRODUCT_CNC,
             )
             print(f"✅ Order placed: {order_id}")
             return order_id
@@ -203,7 +217,9 @@ class ZerodhaBroker:
             "user_id": credentials["username"],
             "password": credentials["password"],
         }
-        login_response = session.post("https://kite.zerodha.com/api/login", login_payload)
+        login_response = session.post(
+            "https://kite.zerodha.com/api/login", login_payload
+        )
 
         # Calculate TOTP timing to avoid expiration
         current_time = int(time.time())
@@ -212,7 +228,9 @@ class ZerodhaBroker:
         # If we're in the last 10 seconds of the window, wait for the next window
         if time_window > 20:
             wait_time = 30 - time_window + 1  # Wait for next window + 1 second buffer
-            print(f"⏳ TOTP window expires in {30 - time_window} seconds, waiting {wait_time} seconds for fresh token...")
+            print(
+                f"⏳ TOTP window expires in {30 - time_window} seconds, waiting {wait_time} seconds for fresh token..."
+            )
             time.sleep(wait_time)
 
         # TOTP POST request
@@ -226,29 +244,34 @@ class ZerodhaBroker:
         totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
 
         if totp_response.status_code != 200:
-            raise RuntimeError(f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}")
+            raise RuntimeError(
+                f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}"
+            )
 
         # Extract request token from redirect URL
         try:
             response = session.get(self.kite.login_url())
             parse_result = urlparse(response.url)
             query_params = parse_qs(parse_result.query)
-        
+
             if "request_token" not in query_params:
-                raise RuntimeError("Login succeeded but request_token not found in URL.")
-            
+                raise RuntimeError(
+                    "Login succeeded but request_token not found in URL."
+                )
+
         except Exception as e:
             # In our case since the local server is not running, we will get an exception
             # This is a workaround to extract the request token from the error response
             # Uncomment the next line to see the full error message
-            
+
             # print("Exception caught while parsing URL:", e)
-            pattern = r"request_token=([A-Za-z0-9]+)"            
+            pattern = r"request_token=([A-Za-z0-9]+)"
             match = re.search(pattern, str(e))
             if match:
                 query_params = {"request_token": [match.group(1)]}
             else:
-                raise RuntimeError("Unable to extract request token from error response.")
+                raise RuntimeError(
+                    "Unable to extract request token from error response."
+                )
 
         return query_params["request_token"][0]
-    

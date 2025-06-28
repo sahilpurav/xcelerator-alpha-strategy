@@ -1,18 +1,20 @@
-import pandas as pd
 import math
+
 import numpy as np
+import pandas as pd
 
 # Capital Allocation Strategy Functions:
 # _fill_underweight_gaps_only() - Conservative: Fill gaps only (for rebalance)
 # _maximize_capital_deployment() - Aggressive: 3-step deployment (for top-ups)
-    
+
+
 def plan_equity_investment(
     symbols: list[str],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     total_capital: float,
     ranked_df: pd.DataFrame,
-    transaction_cost_pct: float = 0.001190
+    transaction_cost_pct: float = 0.001190,
 ) -> pd.DataFrame:
     """
     Generates an execution plan for first-time investment in selected stocks.
@@ -39,7 +41,7 @@ def plan_equity_investment(
 
     # Two-pass allocation strategy to maximize capital deployment
     per_stock_alloc = total_capital / len(symbols) if symbols else 0
-    
+
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
@@ -64,10 +66,10 @@ def plan_equity_investment(
     execution_data = []
     if purchasable_stocks:
         adjusted_per_stock_alloc = total_capital / len(purchasable_stocks)
-        
+
         for sym_clean in purchasable_stocks:
             price = latest_close.get(sym_clean)
-            
+
             if not price or price == 0:
                 continue
 
@@ -79,32 +81,43 @@ def plan_equity_investment(
 
             invested = round(qty * price, 2)
 
-            execution_data.append({
-                "Symbol": sym_clean,
-                "Rank": rank_map.get(sym_clean, "N/A"),
-                "Action": "BUY",
-                "Price": round(price, 2),
-                "Quantity": qty,
-                "Invested": invested,
-            })
+            execution_data.append(
+                {
+                    "Symbol": sym_clean,
+                    "Rank": rank_map.get(sym_clean, "N/A"),
+                    "Action": "BUY",
+                    "Price": round(price, 2),
+                    "Quantity": qty,
+                    "Invested": invested,
+                }
+            )
 
     if execution_data:
         df_exec = pd.DataFrame(execution_data)
         total_value = df_exec["Invested"].sum()
         df_exec["Weight %"] = df_exec["Invested"] / total_value * 100
     else:
-        df_exec = pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
+        df_exec = pd.DataFrame(
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
+        )
 
     return df_exec
 
+
 def _fill_underweight_gaps_only(
-    targets: list[dict],
-    total_capital: float,
-    transaction_cost_pct: float = 0.001190
+    targets: list[dict], total_capital: float, transaction_cost_pct: float = 0.001190
 ) -> list[dict]:
     """
     Conservative allocation strategy: Only fills gaps for underweight holdings.
-    
+
     Used by rebalance logic where we want targeted, controlled allocation
     without over-deploying capital. This function stops after filling
     underweight gaps and doesn't attempt to maximize capital deployment.
@@ -128,15 +141,15 @@ def _fill_underweight_gaps_only(
     # Handle empty targets list
     if not targets:
         return []
-    
+
     df = pd.DataFrame(targets)
-    
+
     # Validate required columns exist
-    required_cols = ['symbol', 'price', 'current_value']
+    required_cols = ["symbol", "price", "current_value"]
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         return []
-    
+
     total_value = df["current_value"].sum() + total_capital
     target_weight = total_value / len(df)
 
@@ -151,22 +164,30 @@ def _fill_underweight_gaps_only(
     for _, row in df.iterrows():
         alloc = total_capital * (row["gap"] / total_gap) if total_gap > 0 else 0
         remaining_budget = total_capital - capital_used
-        
+
         # Account for transaction cost in price calculation
         effective_price = row["price"] * (1 + transaction_cost_pct)
-        est_qty = min(int(alloc // effective_price), int(remaining_budget // effective_price))
-        est_invested = est_qty * row["price"]  # Original price for actual investment amount
+        est_qty = min(
+            int(alloc // effective_price), int(remaining_budget // effective_price)
+        )
+        est_invested = (
+            est_qty * row["price"]
+        )  # Original price for actual investment amount
 
         # Only allocate if quantity is positive
         if est_qty > 0:
-            execution_data.append({
-                "Symbol": row["symbol"],
-                "Action": "BUY",
-                "Price": round(row["price"], 2),
-                "Quantity": est_qty,
-                "Invested": round(est_invested, 2)
-            })
-            capital_used += est_invested * (1 + transaction_cost_pct)  # Include transaction cost in used capital
+            execution_data.append(
+                {
+                    "Symbol": row["symbol"],
+                    "Action": "BUY",
+                    "Price": round(row["price"], 2),
+                    "Quantity": est_qty,
+                    "Invested": round(est_invested, 2),
+                }
+            )
+            capital_used += est_invested * (
+                1 + transaction_cost_pct
+            )  # Include transaction cost in used capital
 
     return execution_data
 
@@ -174,111 +195,121 @@ def _fill_underweight_gaps_only(
 def _maximize_capital_deployment(
     df_holdings: pd.DataFrame,
     additional_capital: float,
-    transaction_cost_pct: float = 0.001190
+    transaction_cost_pct: float = 0.001190,
 ) -> list[dict]:
     """
     Aggressive deployment strategy: 3-step approach to maximize capital utilization.
-    
+
     Step 1: Fill underweight holdings proportionally
     Step 2: Equally distribute remaining capital across all stocks in portfolio
     Step 3: Continue until remaining cash is minimal (< capital * transaction_cost_pct)
-    
+
     Used by top-up logic where we want to deploy as much capital as possible
     while maintaining approximate equal weighting.
-    
+
     Parameters:
     - df_holdings: DataFrame with columns 'symbol', 'price', 'current_value'
     - additional_capital: Total capital to be invested
     - transaction_cost_pct: Transaction cost percentage
-    
+
     Returns:
     - List of execution orders with Symbol, Action, Price, Quantity, Invested
     """
     import pandas as pd
-    
+
     if df_holdings.empty:
         return []
-    
+
     # Step 1: Fill underweight holdings (existing logic)
     total_value = df_holdings["current_value"].sum() + additional_capital
     target_weight = total_value / len(df_holdings)
-    
+
     underweight_df = df_holdings[df_holdings["current_value"] < target_weight].copy()
     underweight_df["gap"] = target_weight - underweight_df["current_value"]
     total_gap = underweight_df["gap"].sum()
-    
+
     execution_data = []
     remaining_capital = additional_capital
-    
+
     # Allocate to underweight holdings first
     for _, row in underweight_df.iterrows():
         if remaining_capital <= 0:
             break
-            
+
         alloc = additional_capital * (row["gap"] / total_gap) if total_gap > 0 else 0
         effective_price = row["price"] * (1 + transaction_cost_pct)
-        est_qty = min(int(alloc // effective_price), int(remaining_capital // effective_price))
-        
+        est_qty = min(
+            int(alloc // effective_price), int(remaining_capital // effective_price)
+        )
+
         if est_qty > 0:
             est_invested = est_qty * row["price"]
             total_cost = est_invested * (1 + transaction_cost_pct)
-            
-            execution_data.append({
-                "Symbol": row["symbol"],
-                "Action": "BUY",
-                "Price": round(row["price"], 2),
-                "Quantity": est_qty,
-                "Invested": round(est_invested, 2)
-            })
+
+            execution_data.append(
+                {
+                    "Symbol": row["symbol"],
+                    "Action": "BUY",
+                    "Price": round(row["price"], 2),
+                    "Quantity": est_qty,
+                    "Invested": round(est_invested, 2),
+                }
+            )
             remaining_capital -= total_cost
-    
+
     # Step 2 & 3: Distribute remaining capital equally across all stocks
     # Continue until remaining capital is close to transaction cost buffer
     min_remaining_threshold = additional_capital * transaction_cost_pct
-    
+
     while remaining_capital > min_remaining_threshold:
         num_stocks = len(df_holdings)
         per_stock_allocation = remaining_capital / num_stocks
-        
+
         # Track if we made any allocation in this round
         allocated_this_round = False
         round_cost = 0
         round_orders = []
-        
+
         # Try to allocate equally across all stocks
         for _, row in df_holdings.iterrows():
             effective_price = row["price"] * (1 + transaction_cost_pct)
-            
+
             # Calculate quantity based on per-stock allocation, but at least 1 share
             qty_from_allocation = int(per_stock_allocation // effective_price)
-            qty = max(1, qty_from_allocation) if per_stock_allocation >= effective_price else 0
-            
+            qty = (
+                max(1, qty_from_allocation)
+                if per_stock_allocation >= effective_price
+                else 0
+            )
+
             if qty > 0 and round_cost + (qty * effective_price) <= remaining_capital:
                 invested = qty * row["price"]
                 total_cost = invested * (1 + transaction_cost_pct)
-                
-                round_orders.append({
-                    "Symbol": row["symbol"],
-                    "Action": "BUY", 
-                    "Price": round(row["price"], 2),
-                    "Quantity": qty,
-                    "Invested": round(invested, 2)
-                })
+
+                round_orders.append(
+                    {
+                        "Symbol": row["symbol"],
+                        "Action": "BUY",
+                        "Price": round(row["price"], 2),
+                        "Quantity": qty,
+                        "Invested": round(invested, 2),
+                    }
+                )
                 round_cost += total_cost
                 allocated_this_round = True
-        
+
         # If we couldn't allocate to any stock this round, break to avoid infinite loop
         if not allocated_this_round:
             break
-            
+
         # Add this round's orders to execution data and update remaining capital
         execution_data.extend(round_orders)
         remaining_capital -= round_cost
-        
+
         # If remaining capital is small enough, break
         if remaining_capital <= min_remaining_threshold:
             break
-    
+
     # Consolidate orders for same symbol
     consolidated = {}
     for order in execution_data:
@@ -288,7 +319,7 @@ def _maximize_capital_deployment(
             consolidated[symbol]["Invested"] += order["Invested"]
         else:
             consolidated[symbol] = order.copy()
-    
+
     return list(consolidated.values())
 
 
@@ -297,7 +328,7 @@ def plan_capital_addition(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     additional_capital: float,
-    transaction_cost_pct: float = 0.001190
+    transaction_cost_pct: float = 0.001190,
 ) -> pd.DataFrame:
     """
     Generates a BUY-only execution plan to distribute additional capital efficiently.
@@ -305,10 +336,10 @@ def plan_capital_addition(
     1. Fill underweight holdings proportionally to target weight
     2. Distribute remaining capital equally across all stocks in portfolio
     3. Continue allocation rounds until remaining cash is minimal (< capital * transaction_cost_pct)
-    
+
     This approach handles both small and large capital amounts efficiently,
     minimizing leftover cash while maintaining approximate equal weighting.
-    
+
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
     - price_data: Dict mapping symbols to price DataFrames
@@ -333,18 +364,20 @@ def plan_capital_addition(
         qty = h["quantity"]
         price = latest_close.get(symbol)
         if price:
-            rows.append({"symbol": symbol, "price": price, "current_value": qty * price})
+            rows.append(
+                {"symbol": symbol, "price": price, "current_value": qty * price}
+            )
 
     df_holdings = pd.DataFrame(rows)
-    
+
     if not rows:
-        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
+        return pd.DataFrame(
+            columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"]
+        )
 
     # Step 2: Use improved top-up allocation logic
     execution_data = _maximize_capital_deployment(
-        df_holdings,
-        additional_capital,
-        transaction_cost_pct
+        df_holdings, additional_capital, transaction_cost_pct
     )
 
     # Step 3: Final formatting
@@ -352,10 +385,13 @@ def plan_capital_addition(
         df_exec = pd.DataFrame(execution_data)
         total = df_exec["Invested"].sum()
         df_exec["Weight %"] = df_exec["Invested"] / total * 100
-        
+
         return df_exec
     else:
-        return pd.DataFrame(columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"])
+        return pd.DataFrame(
+            columns=["Symbol", "Action", "Price", "Quantity", "Invested", "Weight %"]
+        )
+
 
 def plan_portfolio_rebalance(
     held_stocks: list[str],
@@ -365,7 +401,7 @@ def plan_portfolio_rebalance(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     ranked_df: pd.DataFrame,
-    transaction_cost_pct: float = 0.001190
+    transaction_cost_pct: float = 0.001190,
 ) -> pd.DataFrame:
     """
     Rebalance logic fully aligned with user's 5-point vision.
@@ -390,11 +426,15 @@ def plan_portfolio_rebalance(
     prev_df = pd.DataFrame(previous_holdings)
 
     if prev_df.empty:
-        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])
-    
+        return pd.DataFrame(
+            columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
+        )
+
     if "symbol" not in prev_df.columns or "quantity" not in prev_df.columns:
-        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"])
-    
+        return pd.DataFrame(
+            columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
+        )
+
     prev_df["current_price"] = prev_df["symbol"].map(latest_close)
     prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
 
@@ -403,14 +443,16 @@ def plan_portfolio_rebalance(
 
     execution_data = []
     for _, row in df_removed.iterrows():
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Rank": rank_map.get(row["symbol"], "N/A"),
-            "Action": "SELL",
-            "Price": round(row["current_price"], 2),
-            "Quantity": int(row["quantity"]),
-            "Invested": round(row["current_value"], 2),
-        })
+        execution_data.append(
+            {
+                "Symbol": row["symbol"],
+                "Rank": rank_map.get(row["symbol"], "N/A"),
+                "Action": "SELL",
+                "Price": round(row["current_price"], 2),
+                "Quantity": int(row["quantity"]),
+                "Invested": round(row["current_value"], 2),
+            }
+        )
 
     total_sell_value = df_removed["current_value"].sum()
     estimated_cost = total_sell_value * 2 * transaction_cost_pct
@@ -430,28 +472,36 @@ def plan_portfolio_rebalance(
         qty = int(max_alloc // price)
         invested = qty * price
         if qty > 0 and used + invested <= freed_capital:
-            new_entries_exec.append({
-                "Symbol": sym,
-                "Rank": rank_map.get(sym, "N/A"),
-                "Action": "BUY",
-                "Price": round(price, 2),
-                "Quantity": qty,
-                "Invested": round(invested, 2)
-            })
+            new_entries_exec.append(
+                {
+                    "Symbol": sym,
+                    "Rank": rank_map.get(sym, "N/A"),
+                    "Action": "BUY",
+                    "Price": round(price, 2),
+                    "Quantity": qty,
+                    "Invested": round(invested, 2),
+                }
+            )
             used += invested
 
     remaining = freed_capital - used
 
     # Step 2: Allocate remaining to underweight holdings
     held_targets = []
-    if not df_held.empty and "current_value" in df_held.columns and "current_price" in df_held.columns:
+    if (
+        not df_held.empty
+        and "current_value" in df_held.columns
+        and "current_price" in df_held.columns
+    ):
         for _, row in df_held.iterrows():
             if row["current_value"] < target_weight_value:
-                held_targets.append({
-                    "symbol": row["symbol"],
-                    "price": row["current_price"],
-                    "current_value": row["current_value"]
-                })
+                held_targets.append(
+                    {
+                        "symbol": row["symbol"],
+                        "price": row["current_price"],
+                        "current_value": row["current_value"],
+                    }
+                )
 
     held_exec = _fill_underweight_gaps_only(held_targets, remaining)
     used += sum(row["Invested"] for row in held_exec)
@@ -462,146 +512,186 @@ def plan_portfolio_rebalance(
     all_final = set(held_stocks + new_entries)
     fallback_universe = sorted(
         [s for s in all_final if s not in all_allocated and latest_close.get(s)],
-        key=lambda s: latest_close[s]
+        key=lambda s: latest_close[s],
     )
     for sym in fallback_universe:
         price = latest_close[sym]
         qty = int(remaining // price)
         if qty > 0:
             invested = qty * price
-            execution_data.append({
-                "Symbol": sym,
-                "Rank": rank_map.get(sym, "N/A"),
-                "Action": "BUY",
-                "Price": round(price, 2),
-                "Quantity": qty,
-                "Invested": round(invested, 2)
-            })
+            execution_data.append(
+                {
+                    "Symbol": sym,
+                    "Rank": rank_map.get(sym, "N/A"),
+                    "Action": "BUY",
+                    "Price": round(price, 2),
+                    "Quantity": qty,
+                    "Invested": round(invested, 2),
+                }
+            )
             break
 
     execution_data.extend(new_entries_exec)
     execution_data.extend(held_exec)
 
     for _, row in df_held.iterrows():
-        execution_data.append({
-            "Symbol": row["symbol"],
-            "Rank": rank_map.get(row["symbol"], "N/A"),
-            "Action": "HOLD",
-            "Price": round(row["current_price"], 2),
-            "Quantity": int(row["quantity"]),
-            "Invested": round(row["current_value"], 2)
-        })
+        execution_data.append(
+            {
+                "Symbol": row["symbol"],
+                "Rank": rank_map.get(row["symbol"], "N/A"),
+                "Action": "HOLD",
+                "Price": round(row["current_price"], 2),
+                "Quantity": int(row["quantity"]),
+                "Invested": round(row["current_value"], 2),
+            }
+        )
 
     df_exec = pd.DataFrame(execution_data)
-    df_exec = df_exec.groupby(["Symbol", "Rank", "Action", "Price"], as_index=False).agg({
-        "Quantity": "sum",
-        "Invested": "sum"
-    })
+    df_exec = df_exec.groupby(
+        ["Symbol", "Rank", "Action", "Price"], as_index=False
+    ).agg({"Quantity": "sum", "Invested": "sum"})
     total_value = df_exec.query("Action != 'SELL'")["Invested"].sum()
     df_exec["Weight %"] = df_exec.apply(
-        lambda row: round((row["Invested"] / total_value) * 100, 2) if row["Action"] != "SELL" else 0.0,
-        axis=1
+        lambda row: (
+            round((row["Invested"] / total_value) * 100, 2)
+            if row["Action"] != "SELL"
+            else 0.0
+        ),
+        axis=1,
     )
 
     return df_exec.sort_values(by=["Action", "Symbol"], ascending=[False, True])
+
 
 def plan_move_to_cash_equivalent(
     previous_holdings: list[dict],
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     ranked_df: pd.DataFrame,
-    cash_equivalent: str = "LIQUIDCASE.NS"
+    cash_equivalent: str = "LIQUIDCASE.NS",
 ) -> pd.DataFrame:
     """
     Plans complete exit from all positions when market regime is weak and moves to cash equivalent.
     Sells all holdings and invests in the specified cash equivalent.
-    
+
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
     - price_data: Dict mapping symbols to price DataFrames
     - as_of_date: Date for which price is used
     - ranked_df: DataFrame containing stock rankings (for rank mapping)
     - cash_equivalent: Symbol to use as cash equivalent (default: "LIQUIDCASE.NS")
-    
+
     Returns:
     - DataFrame with SELL orders for all positions and BUY order for cash equivalent
     """
     if not previous_holdings:
-        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
-    
+        return pd.DataFrame(
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
+        )
+
     # Create rank mapping
     ranked_df = ranked_df.copy() if not ranked_df.empty else pd.DataFrame()
     if not ranked_df.empty:
-        ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
+        ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(
+            ".NS", "", regex=False
+        )
         ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
         ranked_df["normalized_rank"] = range(1, len(ranked_df) + 1)
         rank_map = dict(zip(ranked_df["symbol_clean"], ranked_df["normalized_rank"]))
     else:
         rank_map = {}
-    
+
     # Get latest prices
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
         if as_of_date in df.index
     }
-    
+
     # Filter out cash equivalent from current holdings if present
-    non_cash_holdings = [h for h in previous_holdings 
-                         if h["symbol"] != cash_equivalent.replace(".NS", "")]
-    
+    non_cash_holdings = [
+        h
+        for h in previous_holdings
+        if h["symbol"] != cash_equivalent.replace(".NS", "")
+    ]
+
     # Step 1: Generate SELL orders for all non-cash positions
     execution_data = []
     total_value = 0
-    
+
     for holding in non_cash_holdings:
         symbol = holding["symbol"]
         quantity = holding["quantity"]
         price = latest_close.get(symbol)
-        
+
         if price and quantity > 0:
             current_value = quantity * price
             total_value += current_value
-            
-            execution_data.append({
-                "Symbol": symbol,
-                "Rank": rank_map.get(symbol, "N/A"),
-                "Action": "SELL",
-                "Price": round(price, 2),
-                "Quantity": int(quantity),
-                "Invested": round(current_value, 2),
-                "Weight %": 0.0
-            })
-    
+
+            execution_data.append(
+                {
+                    "Symbol": symbol,
+                    "Rank": rank_map.get(symbol, "N/A"),
+                    "Action": "SELL",
+                    "Price": round(price, 2),
+                    "Quantity": int(quantity),
+                    "Invested": round(current_value, 2),
+                    "Weight %": 0.0,
+                }
+            )
+
     # Step 2: Generate BUY order for cash equivalent
     # First check if we have price data for the cash equivalent
     cash_symbol_clean = cash_equivalent.replace(".NS", "")
     cash_price = latest_close.get(cash_symbol_clean)
-    
+
     if cash_price and total_value > 0:
         # Assume 0.1% transaction cost
         transaction_cost = total_value * 0.001
         available_capital = total_value - transaction_cost
-        
+
         # Calculate how many units we can buy
         qty = int(available_capital / cash_price)
-        
+
         if qty > 0:
             invested = qty * cash_price
-            
-            execution_data.append({
-                "Symbol": cash_symbol_clean,
-                "Rank": "N/A",
-                "Action": "BUY",
-                "Price": round(cash_price, 2),
-                "Quantity": qty,
-                "Invested": round(invested, 2),
-                "Weight %": 100.0
-            })
-    
-    return pd.DataFrame(execution_data) if execution_data else pd.DataFrame(
-        columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"]
+
+            execution_data.append(
+                {
+                    "Symbol": cash_symbol_clean,
+                    "Rank": "N/A",
+                    "Action": "BUY",
+                    "Price": round(cash_price, 2),
+                    "Quantity": qty,
+                    "Invested": round(invested, 2),
+                    "Weight %": 100.0,
+                }
+            )
+
+    return (
+        pd.DataFrame(execution_data)
+        if execution_data
+        else pd.DataFrame(
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
+        )
     )
+
 
 def plan_capital_withdrawal(
     previous_holdings: list[dict],
@@ -610,11 +700,11 @@ def plan_capital_withdrawal(
     amount: float = None,
     percentage: float = None,
     full: bool = False,
-    transaction_cost_pct: float = 0.001190
+    transaction_cost_pct: float = 0.001190,
 ) -> pd.DataFrame:
     """
     Plans the withdrawal of capital from the portfolio.
-    
+
     Parameters:
     - previous_holdings: List of dicts with keys 'symbol', 'quantity', 'buy_price'
     - price_data: Dict mapping symbols to price DataFrames
@@ -623,26 +713,35 @@ def plan_capital_withdrawal(
     - percentage: Percentage of portfolio to withdraw (1-100)
     - full: If True, withdraws entire portfolio (overrides amount/percentage)
     - transaction_cost_pct: Percentage of transaction cost per trade
-    
+
     Returns:
     - DataFrame with SELL orders for withdrawal
     """
     if not previous_holdings:
-        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
-    
+        return pd.DataFrame(
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
+        )
+
     # Get latest prices
     latest_close = {
         symbol.replace(".NS", ""): df.loc[as_of_date, "Close"]
         for symbol, df in price_data.items()
         if as_of_date in df.index
     }
-    
+
     # Calculate current portfolio value
     total_portfolio_value = sum(
-        h["quantity"] * latest_close.get(h["symbol"], 0)
-        for h in previous_holdings
+        h["quantity"] * latest_close.get(h["symbol"], 0) for h in previous_holdings
     )
-    
+
     # Determine withdrawal amount
     withdrawal_amount = 0
     if full:
@@ -652,8 +751,18 @@ def plan_capital_withdrawal(
     elif amount is not None:
         withdrawal_amount = amount
     else:
-        return pd.DataFrame(columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested", "Weight %"])
-    
+        return pd.DataFrame(
+            columns=[
+                "Symbol",
+                "Rank",
+                "Action",
+                "Price",
+                "Quantity",
+                "Invested",
+                "Weight %",
+            ]
+        )
+
     # For full withdrawal, sell everything
     if full:
         execution_data = []
@@ -661,42 +770,46 @@ def plan_capital_withdrawal(
             symbol = holding["symbol"]
             quantity = holding["quantity"]
             price = latest_close.get(symbol)
-            
+
             if price and quantity > 0:
-                execution_data.append({
-                    "Symbol": symbol,
-                    "Rank": "N/A",
-                    "Action": "SELL",
-                    "Price": round(price, 2),
-                    "Quantity": int(quantity),
-                    "Invested": round(quantity * price, 2),
-                    "Weight %": 0.0
-                })
-                
+                execution_data.append(
+                    {
+                        "Symbol": symbol,
+                        "Rank": "N/A",
+                        "Action": "SELL",
+                        "Price": round(price, 2),
+                        "Quantity": int(quantity),
+                        "Invested": round(quantity * price, 2),
+                        "Weight %": 0.0,
+                    }
+                )
+
         return pd.DataFrame(execution_data)
-    
+
     # For partial withdrawal, calculate proportional quantities to sell
     withdrawal_ratio = withdrawal_amount / total_portfolio_value
     execution_data = []
-    
+
     for holding in previous_holdings:
         symbol = holding["symbol"]
         quantity = holding["quantity"]
         price = latest_close.get(symbol)
-        
+
         if price and quantity > 0:
             # Calculate sell quantity proportionally
             sell_qty = int(quantity * withdrawal_ratio)
-            
+
             if sell_qty > 0:
-                execution_data.append({
-                    "Symbol": symbol,
-                    "Rank": "N/A",
-                    "Action": "SELL",
-                    "Price": round(price, 2),
-                    "Quantity": sell_qty,
-                    "Invested": round(sell_qty * price, 2),
-                    "Weight %": 0.0
-                })
-    
+                execution_data.append(
+                    {
+                        "Symbol": symbol,
+                        "Rank": "N/A",
+                        "Action": "SELL",
+                        "Price": round(price, 2),
+                        "Quantity": sell_qty,
+                        "Invested": round(sell_qty * price, 2),
+                        "Weight %": 0.0,
+                    }
+                )
+
     return pd.DataFrame(execution_data)

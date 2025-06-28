@@ -1,41 +1,43 @@
 from twilio.rest import Client
+
 from config import Config
 
 # Use centralized configuration
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
-def send_whatsapp_message(message_body=None, type='portfolio'):
+
+def send_whatsapp_message(message_body=None, type="portfolio"):
     """Send a WhatsApp message via Twilio.
-    
+
     Args:
         message_body (str, optional): The message content.
             If not provided, a default message is used.
-    
+
     Returns:
         str: The Message SID if sent successfully.
     """
     if message_body is None:
-        return 
-    
-    
+        return
+
     message_body = format_portfolio_summary(message_body)
 
     # print (type(message_body))
     # print(f"📱 Sending WhatsApp message: {message_body}")
 
-    if(Config.ENABLE_TWILIO_WHATSAPP):
+    if Config.ENABLE_TWILIO_WHATSAPP:
         # print(f"📱 Sending WhatsApp message: {message_body}")
         message = client.messages.create(
             body=message_body,
             from_=Config.TWILIO_WHATSAPP_FROM,
-            to=Config.TWILIO_WHATSAPP_TO
+            to=Config.TWILIO_WHATSAPP_TO,
         )
         return message.sid
 
-def format_portfolio_summary(df, char_limit=1500):
-    import pandas as pd
 
+def format_portfolio_summary(df, char_limit=1500):
     from datetime import datetime
+
+    import pandas as pd
 
     # Timestamp
     now = datetime.now().strftime("🕒 %d %b %Y, %H:%M")
@@ -44,10 +46,10 @@ def format_portfolio_summary(df, char_limit=1500):
     df.columns = [col.strip() for col in df.columns]
 
     # Round price
-    df['Price'] = df['Price'].round(2)
+    df["Price"] = df["Price"].round(2)
 
     # SELL section
-    sell_rows = df[df['Action'].str.upper() == 'SELL']
+    sell_rows = df[df["Action"].str.upper() == "SELL"]
     sell_lines = [
         f"{row['Symbol']}({row['Price']}, {int(row['Quantity'])})"
         for _, row in sell_rows.iterrows()
@@ -55,30 +57,34 @@ def format_portfolio_summary(df, char_limit=1500):
     sell_text = "SELL:\n" + ", ".join(sell_lines) if sell_lines else ""
 
     # HOLD section
-    hold_rows = df[df['Action'].str.upper() == 'HOLD']
+    hold_rows = df[df["Action"].str.upper() == "HOLD"]
     hold_lines = [
-        f"{row['Symbol']}(#%s)" % int(row['Rank']) if str(row['Rank']).isdigit() else f"{row['Symbol']}(#NA)"
+        (
+            f"{row['Symbol']}(#%s)" % int(row["Rank"])
+            if str(row["Rank"]).isdigit()
+            else f"{row['Symbol']}(#NA)"
+        )
         for _, row in hold_rows.iterrows()
     ]
-    hold_chunks = [", ".join(hold_lines[i:i+4]) for i in range(0, len(hold_lines), 4)]
+    hold_chunks = [
+        ", ".join(hold_lines[i : i + 4]) for i in range(0, len(hold_lines), 4)
+    ]
     hold_text = "HOLD:\n" + "\n".join(hold_chunks) if hold_chunks else ""
 
     # BUY section
-    buy_rows = df[df['Action'].str.upper() == 'BUY']
+    buy_rows = df[df["Action"].str.upper() == "BUY"]
     buy_lines = [
         f"{row['Symbol']}({row['Price']}, {int(row['Quantity'])})"
         for _, row in buy_rows.iterrows()
     ]
-    buy_chunks = [", ".join(buy_lines[i:i+3]) for i in range(0, len(buy_lines), 3)]
+    buy_chunks = [", ".join(buy_lines[i : i + 3]) for i in range(0, len(buy_lines), 3)]
     buy_text = "BUY:\n" + "\n".join(buy_chunks) if buy_chunks else ""
 
     # Summary
-    before_value = df['Invested'].sum()
-    after_value = df[df['Action'].str.upper() != 'SELL']['Invested'].sum()
+    before_value = df["Invested"].sum()
+    after_value = df[df["Action"].str.upper() != "SELL"]["Invested"].sum()
     summary = (
-        "\n\nSummary:\n"
-        f"Before: ₹{before_value:,.2f}\n"
-        f"After: ₹{after_value:,.2f}"
+        "\n\nSummary:\n" f"Before: ₹{before_value:,.2f}\n" f"After: ₹{after_value:,.2f}"
     )
 
     # Attempt with HOLD included
@@ -100,7 +106,6 @@ def format_portfolio_summary(df, char_limit=1500):
     return message
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     sid = send_whatsapp_message()
     print(f"Message sent with SID: {sid}")

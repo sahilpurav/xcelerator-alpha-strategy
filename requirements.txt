@@ -25,3 +25,8 @@ scipy
 PyPDF2
 
 twilio
+
+# Dev tools
+black
+isort
+basedpyright

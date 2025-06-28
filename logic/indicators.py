@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def calculate_return(df: pd.DataFrame, days: int) -> float:
     """
     Calculates percentage return over the last `days` period using 'Close' prices.
@@ -51,6 +52,7 @@ def calculate_dma(df: pd.DataFrame, period: int = 200) -> float:
         return None
 
     return df["Close"].rolling(window=period).mean().iloc[-1]
+
 
 def calculate_ema(df: pd.DataFrame, period: int = 200) -> float:
     """

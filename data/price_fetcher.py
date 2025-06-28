@@ -1,13 +1,17 @@
 import os
+from datetime import datetime
+from typing import Optional
+
 import pandas as pd
 import yfinance as yf
-from typing import Optional
-from datetime import datetime
-from utils.market import is_market_open_now
-from utils.market import get_last_trading_date
-from utils.cache import is_caching_enabled, load_from_file, save_to_file
 
-def is_cache_stale_or_missing(symbols: list[str], start: str | None = None, cache_dir: str = "cache/prices") -> bool:
+from utils.cache import is_caching_enabled, load_from_file, save_to_file
+from utils.market import get_last_trading_date, is_market_open_now
+
+
+def is_cache_stale_or_missing(
+    symbols: list[str], start: str | None = None, cache_dir: str = "cache/prices"
+) -> bool:
     """
     Checks if the cache for the given symbols is stale or missing.
     Also verifies that the cache contains the required historical range if start date is provided.
@@ -18,7 +22,7 @@ def is_cache_stale_or_missing(symbols: list[str], start: str | None = None, cach
         # Print a debug message to make it clear we're skipping cache
         print("⚠️ Caching is disabled, using fresh data...")
         return True
-        
+
     if not symbols:
         return True
 
@@ -37,29 +41,31 @@ def is_cache_stale_or_missing(symbols: list[str], start: str | None = None, cach
         if not cached_data or not isinstance(cached_data, list) or not cached_data:
             print(f"🛑 Invalid or empty cache for {check_symbol}")
             return True
-            
+
         # Convert to DataFrame
         df = pd.DataFrame(cached_data)
-        
+
         # Check if "Date" column exists
         if "Date" not in df.columns:
             print(f"🛑 Invalid cache format for {check_symbol}: missing 'Date' column")
             return True
-            
+
         # Set Date as index after verifying it exists
         df["Date"] = pd.to_datetime(df["Date"])
         df = df.set_index("Date")
-        
+
         # Check if we have enough historical data
         if start:
             required_start = pd.to_datetime(start)  # Use start date as is
             earliest_cached = pd.to_datetime(df.index.min()).normalize()
-            
+
             if earliest_cached > required_start:
                 print(f"📉 Cache doesn't have enough history:")
                 print(f"   ├── Earliest cached: {earliest_cached.date()}")
                 print(f"   ├── Required start : {required_start.date()}")
-                print(f"   └── Missing {(earliest_cached - required_start).days} days of history")
+                print(
+                    f"   └── Missing {(earliest_cached - required_start).days} days of history"
+                )
                 return True
 
         # Check if we have latest data
@@ -67,7 +73,9 @@ def is_cache_stale_or_missing(symbols: list[str], start: str | None = None, cach
         last_trading_day = pd.to_datetime(get_last_trading_date()).normalize()
 
         if last_cached_date < last_trading_day:
-            print(f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}")
+            print(
+                f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}"
+            )
             return True
 
         # Check if other symbols exist
@@ -87,7 +95,7 @@ def download_and_cache_prices(
     symbols: list[str],
     start: str,
     end: Optional[str] = None,
-    cache_dir: str = "cache/prices"
+    cache_dir: str = "cache/prices",
 ) -> dict[str, pd.DataFrame]:
     """
     Downloads historical price data for given symbols and caches it locally.
@@ -95,22 +103,27 @@ def download_and_cache_prices(
     Returns a dictionary of DataFrames indexed by symbol.
     """
     # If no end date is provided, use today's date
-    end = end or datetime.today().strftime('%Y-%m-%d')
+    end = end or datetime.today().strftime("%Y-%m-%d")
 
     # ⚠️ Yahoo's `end` parameter is exclusive — to include the last trading day,
     # we need to shift it by +1 day
     end_dt = pd.to_datetime(end) + pd.Timedelta(days=1)
-    end = end_dt.strftime('%Y-%m-%d')
+    end = end_dt.strftime("%Y-%m-%d")
 
     live_market = is_market_open_now()
-    
+
     # Only create cache directories and check cache if caching is enabled
     if is_caching_enabled():
         os.makedirs(cache_dir, exist_ok=True)
-        
+
         # Load from cache if everything is valid and fresh
-        if not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir) and not live_market:
-            print("✅ Cache is fresh and contains required history. Loading all symbols locally...")
+        if (
+            not is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir)
+            and not live_market
+        ):
+            print(
+                "✅ Cache is fresh and contains required history. Loading all symbols locally..."
+            )
             result = {}
             for symbol in symbols:
                 try:
@@ -123,13 +136,13 @@ def download_and_cache_prices(
                         # Make an explicit copy before modifying
                         df = df.copy()
                         df["Date"] = pd.to_datetime(df["Date"])
-                        
+
                         # Ensure numeric columns are converted to float
                         numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
                         for col in numeric_columns:
                             if col in df.columns:
-                                df[col] = pd.to_numeric(df[col], errors='coerce')
-                                
+                                df[col] = pd.to_numeric(df[col], errors="coerce")
+
                         df = df.set_index("Date").sort_index()
                         result[symbol] = df
                     else:
@@ -137,7 +150,7 @@ def download_and_cache_prices(
                 except Exception as e:
                     print(f"⚠️ Failed to load cache for {symbol}: {e}")
             return result
-    
+
     if live_market:
         print("⚠️ Live market detected. Ignoring the cache and using fresh prices.")
 
@@ -151,7 +164,7 @@ def download_and_cache_prices(
             group_by="ticker",
             auto_adjust=True,
             threads=True,
-            progress=False
+            progress=False,
         )
     except Exception as e:
         print(f"❌ Batch download failed: {e}")
@@ -163,16 +176,22 @@ def download_and_cache_prices(
         try:
             df = data[symbol] if isinstance(data.columns, pd.MultiIndex) else data
             df = df.dropna()
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+            df = df[["Open", "High", "Low", "Close", "Volume"]]
             # Make an explicit copy to avoid SettingWithCopyWarning
-            df = df.rename_axis("Date").reset_index().set_index("Date").sort_index().copy()
-            
+            df = (
+                df.rename_axis("Date")
+                .reset_index()
+                .set_index("Date")
+                .sort_index()
+                .copy()
+            )
+
             # Ensure numeric columns are in the correct format
             numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
             for col in numeric_columns:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                    
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
             result[symbol] = df
 
             # Only attempt to save to cache if caching is enabled
@@ -180,8 +199,10 @@ def download_and_cache_prices(
                 try:
                     cached_path = os.path.join(cache_dir, f"{symbol}.csv")
                     # Convert DataFrame to records for storage (list of dictionaries)
-                    df_to_save = df.reset_index()  # Make sure Date is a column, not index
-                    records = df_to_save.to_dict('records')
+                    df_to_save = (
+                        df.reset_index()
+                    )  # Make sure Date is a column, not index
+                    records = df_to_save.to_dict("records")
                     # Use the utility function to save
                     save_to_file(records, cached_path)
                 except Exception as e:
