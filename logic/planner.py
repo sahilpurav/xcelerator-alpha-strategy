@@ -410,6 +410,14 @@ def plan_portfolio_rebalance(
     - Avoid trimming or over allocating
     - Apply 1-stock fallback for leftover capital
     """
+
+    prev_df = pd.DataFrame(previous_holdings)
+
+    if prev_df.empty or "symbol" not in prev_df.columns or "quantity" not in prev_df.columns:
+        return pd.DataFrame(
+            columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
+        )
+
     ranked_df = ranked_df.copy()
     ranked_df["symbol_clean"] = ranked_df["symbol"].str.replace(".NS", "", regex=False)
     ranked_df = ranked_df.sort_values("total_rank").reset_index(drop=True)
@@ -423,19 +431,8 @@ def plan_portfolio_rebalance(
         if as_of_date in df.index
     }
 
-    prev_df = pd.DataFrame(previous_holdings)
-
-    if prev_df.empty:
-        return pd.DataFrame(
-            columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
-        )
-
-    if "symbol" not in prev_df.columns or "quantity" not in prev_df.columns:
-        return pd.DataFrame(
-            columns=["Symbol", "Rank", "Action", "Price", "Quantity", "Invested"]
-        )
-
-    prev_df["current_price"] = prev_df["symbol"].map(latest_close)
+    # Map current prices to symbols, handling missing values
+    prev_df["current_price"] = prev_df["symbol"].apply(lambda x: latest_close.get(x, 0))
     prev_df["current_value"] = prev_df["quantity"] * prev_df["current_price"]
 
     df_held = prev_df[prev_df["symbol"].isin(held_stocks)].copy()
