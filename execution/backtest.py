@@ -8,11 +8,7 @@ import pandas as pd
 from broker.backtest import BacktestBroker
 from data.price_fetcher import download_and_cache_prices
 from data.universe_fetcher import get_universe_symbols
-from logic.planner import (
-    plan_equity_investment,
-    plan_move_to_cash_equivalent,
-    plan_portfolio_rebalance,
-)
+from logic.planner import plan_rebalance
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
 from utils.market import get_last_trading_date
@@ -31,7 +27,7 @@ class BacktestEngine:
         rebalance_frequency: str = "W",
         rebalance_day: str = "Wednesday",
         transaction_cost_pct: float = 0.001190,
-        cash_equivalent: str = "LIQUIDBEES.NS",
+        cash_equivalent: str = "LIQUIDCASE.NS",
     ):
         """
         Initialize the backtest engine.
@@ -141,55 +137,30 @@ class BacktestEngine:
         Returns:
             Tuple of (success, execution_df)
         """
-        # Run strategy to get recommendations, market regime and ranked data in one call
-        recommendations, regime, _, new_entries, _, _, ranked_df = run_strategy(
+        # Run strategy to get recommendations in one call
+        recommendations = run_strategy(
             price_data,
             date,
             [],  # No holdings yet
             self.top_n,
             self.band,
-            cash_equivalent=self.cash_equivalent.replace(".NS", ""),
+            cash_equivalent=self.cash_equivalent,
         )
 
-        # If market is weak, move to cash equivalent
-        if regime == "WEAK":
-            # In initial investment with weak market, just buy cash equivalent
-            cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
-            cash_price = None
-
-            # Find cash equivalent price
-            for symbol, df in price_data.items():
-                if symbol.replace(".NS", "") == cash_symbol_clean and date in df.index:
-                    cash_price = df.loc[date, "Close"]
-                    break
-
-            if not cash_price:
-                return False, pd.DataFrame()
-
-            # Calculate quantity
-            qty = int(self.broker.cash / cash_price)
-
-            if qty <= 0:
-                return False, pd.DataFrame()
-
-            # Create execution dataframe
-            exec_df = pd.DataFrame(
-                [
-                    {
-                        "Symbol": cash_symbol_clean,
-                        "Rank": "N/A",
-                        "Action": "BUY",
-                        "Price": round(cash_price, 2),
-                        "Quantity": qty,
-                        "Invested": round(qty * cash_price, 2),
-                        "Weight %": 100.0,
-                    }
-                ]
-            )
-
-            # Execute trades
-            self._execute_backtest_orders(exec_df, date, price_data)
-            return False, exec_df  # Return False to indicate weak market regime
+        # Check if strategy recommends cash equivalent (weak market)
+        cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+        is_weak_market = any(
+            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"] 
+            for rec in recommendations
+        )
+        
+        if is_weak_market:
+            # Strategy recommends cash equivalent - treat as weak market
+            # In backtest, just hold cash (no actual LIQUIDCASE position)
+            return False, pd.DataFrame()  # Return False to indicate weak market regime
+            # In weak market, just hold cash - no need to buy LIQUIDCASE
+            # The broker already has the cash, no trades needed
+            return False, pd.DataFrame()  # Return False to indicate weak market regime
 
         # For strong market, extract selected symbols from recommendations
         selected_symbols = [
@@ -199,14 +170,26 @@ class BacktestEngine:
         if not selected_symbols:
             return False, pd.DataFrame()
 
-        # Generate execution plan
-        exec_df = plan_equity_investment(
-            symbols=selected_symbols,
-            price_data=price_data,
-            as_of_date=date,
-            total_capital=self.broker.cash,
-            ranked_df=ranked_df,
-            transaction_cost_pct=self.transaction_cost_pct,
+        # Build stock entries from recommendations
+        new_stocks = []
+        for rec in recommendations:
+            if rec["action"] == "BUY":
+                symbol_with_ns = f"{rec['symbol']}.NS"
+                if symbol_with_ns in price_data and date in price_data[symbol_with_ns].index:
+                    price = price_data[symbol_with_ns].loc[date, "Close"]
+                    new_stocks.append({
+                        "symbol": rec["symbol"],
+                        "quantity": 0,  # New stock, no existing quantity
+                        "last_price": price,
+                        "rank": rec["rank"]
+                    })
+
+        # Generate execution plan using plan_rebalance
+        exec_df = plan_rebalance(
+            held_stocks=[],  # No existing holdings
+            new_stocks=new_stocks,
+            removed_stocks=[],  # No existing holdings to remove
+            cash=self.broker.cash,
         )
 
         # Execute trades
@@ -229,55 +212,116 @@ class BacktestEngine:
         if not held_symbols:
             return False, pd.DataFrame()
 
-        # Run strategy to get recommendations, regime and ranked data in one call
-        recommendations, regime, held, new_entries, removed_stocks, _, ranked_df = (
-            run_strategy(
-                price_data,
-                date,
-                held_symbols,
-                self.top_n,
-                self.band,
-                cash_equivalent=self.cash_equivalent.replace(".NS", ""),
-            )
+        # Run strategy to get recommendations in one call
+        recommendations = run_strategy(
+            price_data,
+            date,
+            held_symbols,
+            self.top_n,
+            self.band,
+            cash_equivalent=self.cash_equivalent,
+        )
+
+        # Detect market regime from recommendations
+        cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+        is_weak_market = any(
+            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"] 
+            for rec in recommendations
         )
 
         # If market is weak, move to cash equivalent
-        if regime == "WEAK":
-            # Check if we're already in cash
-            cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
-            is_in_cash = cash_symbol_clean in held_symbols and len(held_symbols) == 1
-
-            if is_in_cash:
+        if is_weak_market:
+            # In weak market, exit all equity positions and hold cash
+            # Don't create actual LIQUIDCASE position - just hold cash in broker
+            
+            # Check if we're already in cash (no equity holdings)
+            equity_holdings = [h for h in previous_holdings if h["symbol"] != cash_symbol_clean]
+            
+            if not equity_holdings:
                 return False, pd.DataFrame()  # Already in cash, no action needed
 
-            # Plan move to cash equivalent
-            exec_df = plan_move_to_cash_equivalent(
-                previous_holdings=previous_holdings,
-                price_data=price_data,
-                as_of_date=date,
-                ranked_df=ranked_df,
-                cash_equivalent=self.cash_equivalent,
-            )
+            # Plan to sell all equity positions
+            removed_stocks = []
+            for holding in equity_holdings:
+                symbol = holding["symbol"]
+                symbol_with_ns = f"{symbol}.NS"
+                if symbol_with_ns in price_data and date in price_data[symbol_with_ns].index:
+                    price = price_data[symbol_with_ns].loc[date, "Close"]
+                    removed_stocks.append({
+                        "symbol": symbol,
+                        "quantity": holding["quantity"],
+                        "last_price": price,
+                        "rank": None
+                    })
 
-            # Execute exit trades
+            # Create execution plan to sell all equities (no new purchases)
+            exec_df = pd.DataFrame()
+            if removed_stocks:
+                sells_data = []
+                for stock in removed_stocks:
+                    sells_data.append({
+                        "Symbol": stock["symbol"],
+                        "Rank": "N/A",
+                        "Action": "SELL",
+                        "Price": round(stock["last_price"], 2),
+                        "Quantity": int(stock["quantity"]),
+                        "Invested": round(stock["quantity"] * stock["last_price"], 2),
+                    })
+                exec_df = pd.DataFrame(sells_data)
+
+            # Execute sell trades
             if not exec_df.empty:
                 self._execute_backtest_orders(exec_df, date, price_data)
             return False, exec_df  # Return False to indicate weak market
 
-        # For strong market, we already have all the data needed
-        if not new_entries and not removed_stocks:
+        # For strong market, categorize recommendations
+        held_stocks = []
+        new_stocks = []
+        removed_stocks = []
+
+        for rec in recommendations:
+            symbol = rec["symbol"]
+            action = rec["action"]
+            rank = rec["rank"]
+            
+            # Skip cash equivalent in strong market recommendations
+            if symbol == cash_symbol_clean:
+                continue
+                
+            # Get price data for regular equities
+            symbol_with_ns = f"{symbol}.NS"
+            if symbol_with_ns not in price_data or date not in price_data[symbol_with_ns].index:
+                continue
+            price = price_data[symbol_with_ns].loc[date, "Close"]
+            
+            # Get existing quantity from holdings
+            existing_holding = next((h for h in previous_holdings if h["symbol"] == symbol), None)
+            quantity = existing_holding["quantity"] if existing_holding else 0
+            
+            stock_entry = {
+                "symbol": symbol,
+                "quantity": quantity if action in ["HOLD", "SELL"] else 0,
+                "last_price": price,
+                "rank": rank
+            }
+            
+            if action == "BUY":
+                new_stocks.append(stock_entry)
+            elif action == "HOLD":
+                held_stocks.append(stock_entry)
+            elif action == "SELL":
+                removed_stocks.append(stock_entry)
+
+        # Check if any changes are needed
+        if not new_stocks and not removed_stocks:
             return True, pd.DataFrame()  # No changes needed
 
         # Generate execution plan
-        exec_df = plan_portfolio_rebalance(
-            held_stocks=held,
-            new_entries=new_entries,
+        exec_df = plan_rebalance(
+            held_stocks=held_stocks,
+            new_stocks=new_stocks,
             removed_stocks=removed_stocks,
-            previous_holdings=previous_holdings,
-            price_data=price_data,
-            as_of_date=date,
-            ranked_df=ranked_df,
-            transaction_cost_pct=self.transaction_cost_pct,
+            cash=self.broker.cash,
         )
 
         # Execute trades
@@ -355,6 +399,10 @@ class BacktestEngine:
         for date in trading_dates:
             # Track daily portfolio value
             self.track_portfolio_value(date, price_data)
+            
+            # Apply liquid fund returns for current date
+
+            
             current_value = self.broker.get_portfolio_value(price_data, date)
             pct_change = (
                 ((current_value - last_portfolio_value) / last_portfolio_value * 100)
@@ -568,7 +616,7 @@ def run_backtest(
     end: str | None = None,
     rebalance_day: str = "Wednesday",
     band: int = 5,
-    cash_equivalent: str = "LIQUIDBEES.NS",
+    cash_equivalent: str = "LIQUIDCASE.NS",
 ):
     """
     Main entry point for backtesting from CLI.
@@ -579,7 +627,7 @@ def run_backtest(
         end: End date in YYYY-MM-DD format (optional, defaults to last trading day)
         rebalance_day: Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)
         band: Band size for portfolio stability (higher = less churn)
-        cash_equivalent: Symbol to use as cash equivalent
+        cash_equivalent: Symbol to use as cash equivalent (for detecting weak market)
     """
     start_date = pd.to_datetime(start)
     end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date())

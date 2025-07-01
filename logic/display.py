@@ -52,7 +52,7 @@ def display_portfolio_table(data: list[dict], label_map: dict, tsv: bool = False
     print(f"📌 Total Current Value  : ₹{total_current:,.2f}")
 
 
-def display_execution_plan(exec_df: pd.DataFrame, type: str):
+def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0):
     """
     Displays the execution plan in a user-friendly format.
 
@@ -98,7 +98,7 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str):
     print("-" * 65)
 
     if type == "rebalance":
-        portfolio_value_before = hold_amount + sell_amount
+        portfolio_value_before = hold_amount + sell_amount + cash
         portfolio_value_after = hold_amount + buy_amount
         print(f"📊 Portfolio Value (Before) : ₹{portfolio_value_before:,.2f}")
         print(f"📈 Portfolio Value (After)  : ₹{portfolio_value_after:,.2f}")
