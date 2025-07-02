@@ -209,3 +209,39 @@ def run_rebalance(
     display_execution_plan(exec_df, "rebalance", cash=cash)
     _execute_orders(exec_df, broker, dry_run=dry_run)
     
+def run_topup(dry_run: bool = False):
+    """
+    Adds capital to the existing portfolio by executing a market order for the cash equivalent.
+    
+    Args:
+        dry_run (bool): If True, simulates execution without placing orders
+    """
+    broker = ZerodhaBroker()
+    raw_holdings = broker.get_holdings()
+    
+    # Transform holdings structure: remove buy_price and add rank with None value
+    held_stocks = []
+    for holding in raw_holdings:
+        held_stocks.append({
+            'symbol': holding['symbol'],
+            'quantity': holding['quantity'],
+            'last_price': holding['last_price'],
+            'rank': None
+        })
+
+    cash = broker.cash()
+    
+    print(f"\n💰 Adding ₹{cash} to portfolio...")
+    
+    exec_df = plan_rebalance(
+        held_stocks=held_stocks,
+        new_stocks=[],
+        removed_stocks=[],
+        cash=cash,
+    )
+
+    # Remove Action="HOLD" rows from exec_df
+    exec_df = exec_df[exec_df["Action"] != "HOLD"]
+
+    display_execution_plan(exec_df, "rebalance", cash=cash)
+    _execute_orders(exec_df, broker, dry_run=dry_run)

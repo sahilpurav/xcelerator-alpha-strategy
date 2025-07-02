@@ -3,9 +3,9 @@ from typing import Optional
 import typer
 
 from execution.backtest import run_backtest
-from execution.live import run_rebalance
+from execution.live import run_rebalance, run_topup
 from execution.maintenance import run_clean
-from execution.portfolio import run_holdings_display, run_positions_display, run_rank
+from execution.portfolio import run_holdings_display, run_positions_display
 
 app = typer.Typer(
     help="Xcelerator Alpha Strategy CLI - A momentum-based portfolio management system for Indian equities"
@@ -26,6 +26,13 @@ def rebalance(
     run_rebalance(
         top_n=top_n, band=band, cash_equivalent=cash, rank_day=rank_day, dry_run=dry_run
     )
+
+@app.command()
+def topup(
+    dry_run: bool = typer.Option(False, help="Simulate without placing orders"),
+):
+    """Add capital to existing portfolio"""
+    run_topup(dry_run=dry_run)
 
 
 @app.command()
