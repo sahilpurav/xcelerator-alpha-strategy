@@ -1,4 +1,3 @@
-import os
 import time
 from datetime import timedelta
 from typing import Optional
@@ -10,15 +9,8 @@ from data.price_fetcher import download_and_cache_prices
 from data.universe_fetcher import get_universe_symbols
 from logic.display import display_execution_plan
 from logic.filters import apply_universe_filters
-from logic.planner import (
-    plan_capital_addition,
-    plan_capital_withdrawal,
-    plan_equity_investment,
-    plan_move_to_cash_equivalent,
-    plan_portfolio_rebalance,
-)
+from logic.planner import plan_rebalance
 from logic.strategy import run_strategy
-from utils.cache import save_to_file
 from utils.market import get_last_trading_date, get_ranking_date
 
 
@@ -69,116 +61,35 @@ def _execute_orders(
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
 
-def run_topup_only(amount: float, dry_run=False):
+def _override_ranked_stocks_with_broker_prices(symbols, price_data, broker):
     """
-    Distributes new capital equally across currently held stocks.
-    No ranking, no sells — just top-up.
-
+    Overrides the price data with the latest prices from the broker for the given symbols.
+    
     Args:
-        amount (float): Total additional capital to be distributed across held stocks.
-        dry_run (bool): If True, simulates the execution without placing live orders.
-
-    Workflow:
-        1. Retrieves the last trading day and prints it.
-        2. Fetches current holdings from the broker.
-        3. If no holdings found, prompts user to run initial investment first.
-        4. Gets latest prices for held stocks.
-        5. Plans top-up investment based on current holdings and new capital.
-        6. Displays execution plan to the user.
-        7. Executes orders if not in preview mode.
+        symbols (list): List of stock symbols to override prices for.
+        price_data (dict): Current price data dictionary.
+        broker: Instance of the Broker to fetch live prices.
+    
+    Returns:
+        dict: Updated price data with broker prices.
     """
-    as_of_date = pd.to_datetime(get_last_trading_date())
-    print(f"\n💰 Running capital top-up strategy as of {as_of_date.date()}...")
+    try:
+        live_prices = broker.ltp(symbols)
+        for symbol in symbols:
+            if symbol not in live_prices:
+                continue
 
-    broker = ZerodhaBroker()
-    previous_holdings = broker.get_holdings()
-
-    if not previous_holdings:
-        print("⚠️ No holdings found. Use `initial` command to start portfolio.")
-        return
-
-    held_symbols = [h["symbol"] for h in previous_holdings]
-    symbols = [f"{s}.NS" for s in held_symbols]
-    price_data = _get_latest_prices(symbols, as_of_date)
-
-    exec_df = plan_capital_addition(
-        previous_holdings=previous_holdings,
-        price_data=price_data,
-        as_of_date=as_of_date,
-        additional_capital=amount,
-    )
-
-    display_execution_plan(exec_df, "top-up")
-    _execute_orders(exec_df, broker, dry_run)
-
-
-def run_withdraw(
-    amount: Optional[float] = None,
-    percentage: Optional[float] = None,
-    full: bool = False,
-    dry_run: bool = False,
-):
-    """
-    Withdraws capital from the portfolio proportionally across all holdings.
-
-    Args:
-        amount (float, optional): Specific amount to withdraw (₹)
-        percentage (float, optional): Percentage of portfolio to withdraw (1-100)
-        full (bool): If True, withdraws entire portfolio (overrides amount/percentage)
-        dry_run (bool): If True, simulates the execution without placing live orders
-
-    Workflow:
-        1. Retrieves the last trading day
-        2. Fetches current holdings from the broker
-        3. If no holdings, notifies user and exits
-        4. Gets latest prices for held stocks
-        5. Plans withdrawal based on parameters
-        6. Displays execution plan
-        7. Executes orders if not in dry run mode
-    """
-    as_of_date = pd.to_datetime(get_last_trading_date())
-    print(f"\n💸 Running capital withdrawal strategy as of {as_of_date.date()}...")
-
-    # Input validation
-    if not full and amount is None and percentage is None:
-        print("⚠️ Must specify either amount, percentage or full withdrawal.")
-        return
-
-    if percentage is not None and (percentage <= 0 or percentage > 100):
-        print("⚠️ Percentage must be between 1 and 100.")
-        return
-
-    broker = ZerodhaBroker()
-    previous_holdings = broker.get_holdings()
-
-    if not previous_holdings:
-        print("⚠️ No holdings found. Nothing to withdraw.")
-        return
-
-    held_symbols = [h["symbol"] for h in previous_holdings]
-    symbols = [f"{s}.NS" for s in held_symbols]
-    price_data = _get_latest_prices(symbols, as_of_date)
-
-    exec_df = plan_capital_withdrawal(
-        previous_holdings=previous_holdings,
-        price_data=price_data,
-        as_of_date=as_of_date,
-        amount=amount,
-        percentage=percentage,
-        full=full,
-    )
-
-    if exec_df.empty:
-        print("⚠️ No valid withdrawal plan could be generated.")
-        return
-
-    withdrawal_amount = exec_df["Invested"].sum()
-
-    display_execution_plan(exec_df, "withdrawal")
-    print(f"\n💰 Total withdrawal: ₹{withdrawal_amount:,.2f}")
-
-    _execute_orders(exec_df, broker, dry_run=dry_run)
-
+            symbol_with_ns = f"{symbol}.NS"
+            if symbol_with_ns not in price_data:
+                continue
+            
+            latest_date = price_data[symbol_with_ns].index.max()
+            price_data[symbol_with_ns].loc[latest_date, "Close"] = live_prices[symbol]
+    
+    except Exception as e:
+        print(f"❌ Failed to fetch live prices: {e}")
+    
+    return price_data
 
 def run_rebalance(
     top_n: int = 15,
@@ -188,9 +99,18 @@ def run_rebalance(
     dry_run: bool = False,
 ):
     """
-    Runs the weekly rebalance for Xcelerator Alpha Strategy with market regime check.
-    In strong markets, rebalance the portfolio based on momentum rankings.
-    In weak markets, moves portfolio to cash equivalent.
+    Executes a rebalancing strategy that adapts to market conditions.
+    
+    In STRONG market regime:
+    - Invests in top N ranked stocks based on momentum
+    - Maintains positions in stocks that fall within top N + band rankings
+    - Sells stocks that fall outside the top N + band range
+    
+    In WEAK market regime:
+    - Moves entire portfolio to cash equivalent position
+    
+    When market transitions from WEAK to STRONG:
+    - Redeploys capital into top N ranked stocks
 
     Args:
         top_n (int): Target number of stocks in portfolio
@@ -200,7 +120,7 @@ def run_rebalance(
                                  If None, uses the latest trading day for both ranking and execution.
         dry_run (bool): If True, simulates execution without placing orders
     """
-    # Get trading dates - one for execution (latest) and one for ranking (specified day)
+
     exec_date = pd.to_datetime(get_last_trading_date())
     ranking_date = pd.to_datetime(get_ranking_date(rank_day))
 
@@ -209,119 +129,83 @@ def run_rebalance(
         print(
             f"📊 Using rankings from {ranking_date.date()} (last {rank_day or 'trading day'})"
         )
+    
+    universe = _get_filtered_universe()
+    universe_symbols = [f"{s}.NS" for s in universe]
+
+    price_symbols = list(set(universe_symbols + [cash_equivalent, "^CRSLDX"]))
+    price_data = _get_latest_prices(price_symbols, exec_date)
 
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()
     held_symbols = [h["symbol"] for h in previous_holdings]
 
-    if not held_symbols:
-        print("⚠️ No current holdings found. Use `initial` command to deploy first.")
-        return
-
-    # Step 1: Get universe (filtered) and symbols for ranking
-    universe = _get_filtered_universe()
-    universe_symbols = [f"{s}.NS" for s in universe]
-
-    # Step 2: Extend symbol list with held stocks and cash equivalent (for pricing)
-    cash_symbol = cash_equivalent
-    if not cash_symbol.endswith(".NS"):
-        cash_symbol = f"{cash_symbol}.NS"
-
-    price_symbols = list(
-        set(universe_symbols + [f"{s}.NS" for s in held_symbols] + [cash_symbol])
-    ) + ["^CRSLDX"]
-
-    # Get price data until exec_date (includes data needed for ranking_date as well)
-    price_data = _get_latest_prices(price_symbols, exec_date)
-
-    # Filter out non-universe prices before ranking
-    price_data_for_ranking = {
-        symbol: df
-        for symbol, df in price_data.items()
-        if symbol in universe_symbols
-        or symbol == "^CRSLDX"
-        or symbol == cash_symbol.replace(".NS", "")
-    }
-
-    # Step 3: Run strategy to get all needed information in one call
-    recommendations, market_regime, held, _, _, _, ranked_df = run_strategy(
-        price_data_for_ranking,
-        ranking_date,  # Use ranking_date for strategy decisions
+    
+    # Create lookup for previous holdings quantities
+    holdings_lookup = {h["symbol"]: h for h in previous_holdings}
+    
+    recommendations = run_strategy(
+        price_data,
+        ranking_date,
         held_symbols,
         top_n,
         band,
-        cash_equivalent=cash_equivalent.replace(".NS", ""),
+        cash_equivalent=cash_equivalent,
     )
 
-    # Step 4: Process recommendations based on market regime
-    if market_regime == "WEAK":
-        print("⚠️ Market regime is WEAK. Moving to cash equivalent position.")
+    # Get all symbols from recommendations for price updates
+    all_symbols = [rec["symbol"] for rec in recommendations]
+    price_data = _override_ranked_stocks_with_broker_prices(all_symbols, price_data, broker)
+    
+    # Initialize the three lists
+    held_stocks = []
+    new_stocks = []
+    removed_stocks = []
+    
+    # Process each recommendation
+    for stock in recommendations:
+        symbol = stock["symbol"]
+        action = stock["action"]
+        rank = stock["rank"]  # Rank is now embedded in the recommendation
+        symbol_with_ns = f"{symbol}.NS"
+        
+        # Skip if no price data available
+        if symbol_with_ns not in price_data:
+            continue
+        
+        # Get last price
+        last_price = price_data[symbol_with_ns].iloc[-1]["Close"]
+        
+        # Get quantity from previous holdings (0 if not held)
+        quantity = holdings_lookup.get(symbol, {}).get("quantity", 0)
+        
+        # Create stock entry based on action
+        stock_entry = {
+            "symbol": symbol,
+            "quantity": quantity if action in ["HOLD", "SELL"] else 0,
+            "last_price": last_price,
+            "rank": rank
+        }
+        
+        # Add to appropriate list
+        if action == "BUY":
+            new_stocks.append(stock_entry)
+        elif action == "HOLD":
+            held_stocks.append(stock_entry)
+        elif action == "SELL":
+            removed_stocks.append(stock_entry)
+    
+    # Get cash from broker
+    cash = broker.cash()
+    
+    # Plan smart rebalance
+    exec_df = plan_rebalance(
+        held_stocks=held_stocks,
+        new_stocks=new_stocks,
+        removed_stocks=removed_stocks,
+        cash=cash
+    )
 
-        # Check if we already have only cash equivalent
-        cash_symbol_clean = cash_equivalent.replace(".NS", "")
-        is_in_cash = cash_symbol_clean in held_symbols and len(held_symbols) == 1
-
-        if is_in_cash:
-            print(
-                f"✅ Already fully invested in {cash_symbol_clean}. No action needed."
-            )
-            return
-
-        # Generate plan to move to cash
-        exec_df = plan_move_to_cash_equivalent(
-            previous_holdings=previous_holdings,
-            price_data=price_data,
-            as_of_date=exec_date,
-            ranked_df=ranked_df,
-            cash_equivalent=cash_equivalent,
-        )
-    else:
-        print("💪 Market regime is STRONG. Running normal rebalance.")
-
-        # Convert recommendations to the format needed for planner
-        sell_symbols = [
-            rec["symbol"] for rec in recommendations if rec["action"] == "SELL"
-        ]
-        buy_symbols = [
-            rec["symbol"] for rec in recommendations if rec["action"] == "BUY"
-        ]
-        held = [sym for sym in held_symbols if sym not in sell_symbols]
-
-        # No recommendations means no change needed
-        if not recommendations:
-            print("✅ Portfolio is already optimal. No changes needed.")
-            return
-
-            # No recommendations means no change needed
-        if not recommendations:
-            print("✅ Portfolio is already optimal. No changes needed.")
-            return
-
-        # Try to update the price_data with today's live prices
-        try:
-            relevant_symbols = list(set(held + buy_symbols + sell_symbols))
-            live_prices = broker.ltp(relevant_symbols)
-            for symbol in relevant_symbols:
-                symbol_with_ns = f"{symbol}.NS"
-                if symbol in live_prices and symbol_with_ns in price_data:
-                    latest_date = price_data[symbol_with_ns].index.max()
-                    price_data[symbol_with_ns].loc[latest_date, "Close"] = live_prices[
-                        symbol
-                    ]
-        except Exception as e:
-            print(f"❌ Failed to fetch live prices: {e} falling back to yfinance data.")
-
-        # Generate rebalance plan
-        exec_df = plan_portfolio_rebalance(
-            held_stocks=held,
-            new_entries=buy_symbols,
-            removed_stocks=sell_symbols,
-            previous_holdings=previous_holdings,
-            price_data=price_data,
-            as_of_date=exec_date,  # Use execution date for pricing
-            ranked_df=ranked_df,
-        )
-
-    # Step 5: Display and confirm execution
-    display_execution_plan(exec_df, "rebalance")
+    display_execution_plan(exec_df, "rebalance", cash=cash)
     _execute_orders(exec_df, broker, dry_run=dry_run)
+    

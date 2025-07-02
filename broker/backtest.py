@@ -5,7 +5,19 @@ import pandas as pd
 
 class BacktestBroker:
     """
-    Simulates a broker for backtesting purposes.
+    Simulates a broker for bac            if existing_holding:
+                # Update average price
+                total_quantity = existing_holding["quantity"] + quantity
+                total_value = (
+                    existing_holding["quantity"] * existing_holding["buy_price"]
+                ) + transaction_value
+                existing_holding["buy_price"] = total_value / total_quantity
+                existing_holding["quantity"] = total_quantity
+            else:
+                # Create new holding
+                self.holdings.append(
+                    {"symbol": symbol, "quantity": quantity, "buy_price": price}
+                )oses.
     Mimics the interface of ZerodhaBroker but operates on historical data.
     """
 
@@ -26,6 +38,10 @@ class BacktestBroker:
         self.transactions = []  # Track all transactions for analysis
         self.current_date = None
 
+    def cash(self) -> float:
+        """Get current cash balance (matches live broker interface)."""
+        return self.cash
+
     def get_holdings(self) -> List[Dict]:
         """
         Get current holdings in the same format as ZerodhaBroker.
@@ -38,6 +54,8 @@ class BacktestBroker:
     def get_cash_balance(self) -> float:
         """Get current cash balance."""
         return self.cash
+
+
 
     def get_portfolio_value(
         self, price_data: Dict[str, pd.DataFrame], date: pd.Timestamp
@@ -58,7 +76,7 @@ class BacktestBroker:
             symbol = holding["symbol"]
             quantity = holding["quantity"]
 
-            # Get price for the symbol (add .NS suffix if needed)
+            # Get price for equity symbols (add .NS suffix if needed)
             symbol_key = f"{symbol}.NS" if symbol not in price_data else symbol
 
             if symbol_key in price_data and date in price_data[symbol_key].index:
