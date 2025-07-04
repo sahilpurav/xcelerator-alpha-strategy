@@ -175,7 +175,7 @@ class ZerodhaBroker:
         """
         try:
             margins = self.kite.margins("equity")
-            return margins["available"]["cash"]
+            return margins["available"]["live_balance"]
         except Exception as e:
             print(f"❌ Failed to fetch available funds: {e}")
             return None
