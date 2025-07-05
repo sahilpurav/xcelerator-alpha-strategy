@@ -1,6 +1,5 @@
 import os
 from datetime import timedelta
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -76,7 +75,7 @@ class BacktestEngine:
 
     def get_universe_and_price_data(
         self, start_date: pd.Timestamp, end_date: pd.Timestamp
-    ) -> Tuple[List[str], Dict[str, pd.DataFrame]]:
+    ) -> tuple[list[str], dict[str, pd.DataFrame]]:
         """
         Get filtered universe and historical price data.
         """
@@ -98,7 +97,7 @@ class BacktestEngine:
 
     def get_rebalance_dates(
         self, start_date: pd.Timestamp, end_date: pd.Timestamp
-    ) -> List[pd.Timestamp]:
+    ) -> list[pd.Timestamp]:
         """
         Generate rebalance dates based on frequency and day preference.
         """
@@ -130,8 +129,8 @@ class BacktestEngine:
         return dates
 
     def execute_initial_investment(
-        self, date: pd.Timestamp, price_data: Dict[str, pd.DataFrame]
-    ) -> Tuple[bool, pd.DataFrame]:
+        self, date: pd.Timestamp, price_data: dict[str, pd.DataFrame]
+    ) -> tuple[bool, pd.DataFrame]:
         """
         Execute initial investment on a given date.
         Returns:
@@ -203,8 +202,8 @@ class BacktestEngine:
         return True, exec_df
 
     def execute_rebalance(
-        self, date: pd.Timestamp, price_data: Dict[str, pd.DataFrame]
-    ) -> Tuple[bool, pd.DataFrame]:
+        self, date: pd.Timestamp, price_data: dict[str, pd.DataFrame]
+    ) -> tuple[bool, pd.DataFrame]:
         """
         Execute rebalancing on a given date.
         Returns:
@@ -354,7 +353,7 @@ class BacktestEngine:
         self,
         exec_df: pd.DataFrame,
         date: pd.Timestamp,
-        price_data: Dict[str, pd.DataFrame],
+        price_data: dict[str, pd.DataFrame],
     ):
         """
         Execute orders from execution plan using backtest broker.
@@ -384,7 +383,7 @@ class BacktestEngine:
                         self.trade_count += 1
 
     def track_portfolio_value(
-        self, date: pd.Timestamp, price_data: Dict[str, pd.DataFrame]
+        self, date: pd.Timestamp, price_data: dict[str, pd.DataFrame]
     ):
         """
         Track daily portfolio value for performance analysis.
@@ -392,7 +391,7 @@ class BacktestEngine:
         portfolio_value = self.broker.get_portfolio_value(price_data, date)
         self.portfolio_values.append((date, portfolio_value))
 
-    def run_backtest(self, start_date: pd.Timestamp, end_date: pd.Timestamp) -> Dict:
+    def run_backtest(self, start_date: pd.Timestamp, end_date: pd.Timestamp) -> dict:
         """
         Run the complete backtest.
 
@@ -517,7 +516,7 @@ class BacktestEngine:
 
         return results
 
-    def _generate_results(self) -> Dict:
+    def _generate_results(self) -> dict:
         """
         Generate performance metrics and results.
         """
@@ -585,7 +584,7 @@ class BacktestEngine:
             "transactions": self.broker.get_transactions(),
         }
 
-    def _print_summary(self, results: Dict):
+    def _print_summary(self, results: dict):
         """
         Print backtest summary.
         """
@@ -607,7 +606,7 @@ class BacktestEngine:
         print("=" * 60)
 
 
-def wrap_symbols(symbols: List[str], width: int = 65) -> str:
+def wrap_symbols(symbols: list[str], width: int = 65) -> str:
     """Wrap a list of symbols to fit within specified width."""
     lines = []
     current_line = []

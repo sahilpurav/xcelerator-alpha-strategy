@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 
 from execution.backtest import run_backtest
@@ -17,7 +15,7 @@ def rebalance(
     top_n: int = typer.Option(15, help="Number of stocks to select"),
     band: int = typer.Option(5, help="Band size for portfolio stability"),
     cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
-    rank_day: Optional[str] = typer.Option(
+    rank_day: str | None = typer.Option(
         None,
         help="Day of week for ranking (Monday, Tuesday, etc.). Default: use latest trading day",
     ),
@@ -58,7 +56,7 @@ def positions(tsv: bool = False):
 @app.command()
 def backtest(
     start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
-    end: Optional[str] = typer.Option(
+    end: str | None = typer.Option(
         None, help="Optional end date (YYYY-MM-DD). Defaults to today."
     ),
     rebalance_day: str = typer.Option(

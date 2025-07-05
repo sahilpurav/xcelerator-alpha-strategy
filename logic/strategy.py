@@ -1,5 +1,3 @@
-from typing import Dict, List, Tuple
-
 import pandas as pd
 
 from logic.ranking import rank
@@ -7,15 +5,15 @@ from utils.market import is_market_strong
 
 
 def run_strategy(
-    price_data: Dict[str, pd.DataFrame],
+    price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
-    held_symbols: List[str],
+    held_symbols: list[str],
     top_n: int = 15,
     band: int = 5,
-    weights: Tuple[float, float, float] = (0.8, 0.1, 0.1),
+    weights: tuple[float, float, float] = (0.8, 0.1, 0.1),
     cash_equivalent: str = "LIQUIDCASE.NS",
     jump_threshold: float = 0.15,
-) -> List[dict]:
+) -> list[dict[str, str | int | None]]:
     """
     Optimized strategy execution in a single function.
 

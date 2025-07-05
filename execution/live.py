@@ -1,6 +1,5 @@
 import time
 from datetime import timedelta
-from typing import Optional
 
 import pandas as pd
 
@@ -96,7 +95,7 @@ def run_rebalance(
     top_n: int = 15,
     band: int = 5,
     cash_equivalent: str = "LIQUIDCASE.NS",
-    rank_day: Optional[str] = None,
+    rank_day: str | None = None,
     dry_run: bool = False,
 ):
     """

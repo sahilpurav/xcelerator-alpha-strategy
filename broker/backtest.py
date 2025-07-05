@@ -1,25 +1,17 @@
-from typing import Dict, List, Optional
-
 import pandas as pd
 
 
 class BacktestBroker:
     """
-    Simulates a broker for bac            if existing_holding:
-                # Update average price
-                total_quantity = existing_holding["quantity"] + quantity
-                total_value = (
-                    existing_holding["quantity"] * existing_holding["buy_price"]
-                ) + transaction_value
-                existing_holding["buy_price"] = total_value / total_quantity
-                existing_holding["quantity"] = total_quantity
-            else:
-                # Create new holding
-                self.holdings.append(
-                    {"symbol": symbol, "quantity": quantity, "buy_price": price}
-                )oses.
+    Simulates a broker for backtest purposes.
     Mimics the interface of ZerodhaBroker but operates on historical data.
     """
+
+    initial_capital: float
+    _cash: float
+    holdings: list[dict[str, str | float]]
+    transactions: list[dict[str, str | float]]
+    current_date: pd.Timestamp | None
 
     def __init__(self, initial_capital: float):
         """
@@ -29,18 +21,24 @@ class BacktestBroker:
             initial_capital: Starting cash amount
         """
         self.initial_capital = initial_capital
-        self.cash = initial_capital
+        self._cash = initial_capital
         self.holdings = (
             []
         )  # List of dict: {"symbol": str, "quantity": int, "buy_price": float}
         self.transactions = []  # Track all transactions for analysis
         self.current_date = None
 
+    @property
     def cash(self) -> float:
         """Get current cash balance (matches live broker interface)."""
-        return self.cash
+        return self._cash
+    
+    @cash.setter
+    def cash(self, value: float) -> None:
+        """Set current cash balance."""
+        self._cash = value
 
-    def get_holdings(self) -> List[Dict]:
+    def get_holdings(self) -> list[dict[str, str | float]]:
         """
         Get current holdings in the same format as ZerodhaBroker.
 
@@ -54,7 +52,7 @@ class BacktestBroker:
         return self.cash
 
     def get_portfolio_value(
-        self, price_data: Dict[str, pd.DataFrame], date: pd.Timestamp
+        self, price_data: dict[str, pd.DataFrame], date: pd.Timestamp
     ) -> float:
         """
         Calculate total portfolio value (cash + holdings market value).
@@ -91,7 +89,7 @@ class BacktestBroker:
         transaction_type: str,
         price: float,
         date: pd.Timestamp,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Simulate placing a market order.
 
@@ -198,13 +196,13 @@ class BacktestBroker:
 
         return pd.DataFrame(self.transactions)
 
-    def get_current_positions(self) -> List[Dict]:
+    def get_current_positions(self) -> list[dict[str, str | float]]:
         """
         Get current positions (alias for get_holdings for compatibility).
         """
         return self.get_holdings()
 
-    def reset(self, initial_capital: float = None):
+    def reset(self, initial_capital: float | None = None):
         """
         Reset the broker to initial state.
 

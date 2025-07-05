@@ -1,6 +1,5 @@
 import os
 from io import StringIO
-from typing import Tuple
 
 import pandas as pd
 import requests

@@ -7,7 +7,7 @@ from utils.cache import load_from_file, save_to_file
 from utils.market import get_last_trading_date
 
 
-def _fetch_red_flags(measure: str, cache_dir: str = "cache/filters") -> list:
+def _fetch_red_flags(measure: str, cache_dir: str = "cache/filters") -> list[dict]:
     """
     Fetches red flag data (ASM or GSM) from the NSE website and caches it.
     Args:
@@ -61,7 +61,7 @@ def _fetch_red_flags(measure: str, cache_dir: str = "cache/filters") -> list:
         return None
 
 
-def get_excluded_asm_symbols() -> set:
+def get_excluded_asm_symbols() -> set[str]:
     """
     Extracts symbols from ASM data that are to be excluded.
     Only Stage I stocks are allowed from ASM list. All other stages (Stage II, Stage III, Stage IV)
@@ -86,7 +86,7 @@ def get_excluded_asm_symbols() -> set:
     return lt_excluded | st_excluded
 
 
-def get_excluded_gsm_symbols() -> set:
+def get_excluded_gsm_symbols() -> set[str]:
     """
     Extracts symbols from GSM data that are to be excluded.
     """
@@ -94,7 +94,7 @@ def get_excluded_gsm_symbols() -> set:
     return {item["symbol"].strip() for item in gsm_data if "symbol" in item}
 
 
-def get_excluded_esm_symbols() -> set:
+def get_excluded_esm_symbols() -> set[str]:
     """
     Extracts symbols from ESM data that are to be excluded.
     """
@@ -102,7 +102,7 @@ def get_excluded_esm_symbols() -> set:
     return {item["symbol"].strip() for item in gsm_data if "symbol" in item}
 
 
-def get_asm_exclusion_details(symbols: list[str]) -> dict:
+def get_asm_exclusion_details(symbols: list[str]) -> dict[str, list[dict]]:
     """
     Returns detailed information about which symbols are excluded from ASM and why.
 

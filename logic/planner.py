@@ -4,8 +4,8 @@ import pandas as pd
 
 
 def _allocate_capital_equally_with_cap(
-    stocks: list[dict], usable_capital: float, max_cap_per_stock: float
-) -> tuple[list[dict], float]:
+    stocks: list[dict[str, str | float | int]], usable_capital: float, max_cap_per_stock: float
+) -> tuple[list[dict[str, str | float | int]], float]:
     """
     Step 1: Equal allocation amongst given stocks with maximum cap per stock.
 
@@ -114,8 +114,8 @@ def _allocate_capital_equally_with_cap(
 
 
 def _allocate_leftover_iterative_equal_distribution(
-    allocations: list[dict], leftover_capital: float
-) -> tuple[list[dict], float]:
+    allocations: list[dict[str, str | float | int]], leftover_capital: float
+) -> tuple[list[dict[str, str | float | int]], float]:
     """
     Step 2: Iterative Equal Distribution - distributes leftover capital equally across all stocks
     in multiple rounds until remaining capital is less than the cheapest stock price.
@@ -167,9 +167,9 @@ def _allocate_leftover_iterative_equal_distribution(
 
 
 def _validate_smart_rebalance_inputs(
-    held_stocks: list[dict],
-    new_stocks: list[dict],
-    removed_stocks: list[dict],
+    held_stocks: list[dict[str, str | float | int]],
+    new_stocks: list[dict[str, str | float | int]],
+    removed_stocks: list[dict[str, str | float | int]],
     transaction_cost_pct: float,
 ) -> None:
     """

@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from typing import Optional
 
 import pandas as pd
 import yfinance as yf
@@ -94,7 +93,7 @@ def is_cache_stale_or_missing(
 def download_and_cache_prices(
     symbols: list[str],
     start: str,
-    end: Optional[str] = None,
+    end: str | None = None,
     cache_dir: str = "cache/prices",
 ) -> dict[str, pd.DataFrame]:
     """

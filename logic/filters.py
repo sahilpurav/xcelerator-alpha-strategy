@@ -1,5 +1,4 @@
 import time
-from typing import List
 
 from data.surveillance_fetcher import (
     get_excluded_asm_symbols,
@@ -8,7 +7,7 @@ from data.surveillance_fetcher import (
 )
 
 
-def apply_universe_filters(symbols: List[str]) -> List[str]:
+def apply_universe_filters(symbols: list[str]) -> list[str]:
     """
     Applies universe filters to the given list of symbols.
     Filters out symbols based on ASM, GSM and ESM data.
