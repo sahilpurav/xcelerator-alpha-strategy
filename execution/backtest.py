@@ -26,7 +26,7 @@ class BacktestEngine:
         band: int = 5,
         rebalance_frequency: str = "W",
         rebalance_day: str = "Wednesday",
-        transaction_cost_pct: float = 0.001190,
+        transaction_cost_pct: float = 0.001192,
         cash_equivalent: str = "LIQUIDCASE.NS",
     ):
         """
@@ -67,7 +67,7 @@ class BacktestEngine:
             )
 
         # Initialize broker
-        self.broker = BacktestBroker(initial_capital, transaction_cost_pct)
+        self.broker = BacktestBroker(initial_capital)
 
         # Results tracking
         self.portfolio_values = []

@@ -30,7 +30,7 @@ def _allocate_capital_equally_with_cap(
     updated_stocks = []
     zero_quantity_stocks = [stock for stock in stocks if stock['quantity'] == 0]
     if zero_quantity_stocks:
-        equal_share_per_zero_stock = usable_capital / len(zero_quantity_stocks)
+        amount_per_zero_stock = min((usable_capital / len(zero_quantity_stocks)), max_cap_per_stock)
         
         for stock in stocks:
             if stock['quantity'] == 0:
@@ -40,7 +40,7 @@ def _allocate_capital_equally_with_cap(
                 rank = stock['rank']
                 
                 # Calculate shares we can buy with equal share
-                shares_to_buy = math.floor(equal_share_per_zero_stock / price)
+                shares_to_buy = math.floor(amount_per_zero_stock / price)
                 actual_investment = shares_to_buy * price
                 
                 # Create updated stock with new quantity
@@ -266,7 +266,7 @@ def plan_rebalance(
     new_stocks: list[dict],
     removed_stocks: list[dict],
     cash: float = 0.0,
-    transaction_cost_pct: float = 0.00119,
+    transaction_cost_pct: float = 0.001192,
 ):
     """Plan a rebalance based on current holdings and new entries."""
 

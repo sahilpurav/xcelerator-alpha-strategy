@@ -21,17 +21,15 @@ class BacktestBroker:
     Mimics the interface of ZerodhaBroker but operates on historical data.
     """
 
-    def __init__(self, initial_capital: float, transaction_cost_pct: float = 0.001190):
+    def __init__(self, initial_capital: float):
         """
         Initialize the backtest broker.
 
         Args:
             initial_capital: Starting cash amount
-            transaction_cost_pct: Transaction cost as percentage (default: 0.1190%)
         """
         self.initial_capital = initial_capital
         self.cash = initial_capital
-        self.transaction_cost_pct = transaction_cost_pct
         self.holdings = (
             []
         )  # List of dict: {"symbol": str, "quantity": int, "buy_price": float}
@@ -113,20 +111,17 @@ class BacktestBroker:
             return None
 
         transaction_value = quantity * price
-        transaction_cost = transaction_value * self.transaction_cost_pct
 
         if transaction_type == "BUY":
-            total_cost = transaction_value + transaction_cost
-
             # Check if we have enough cash
-            if total_cost > self.cash:
+            if transaction_value > self.cash:
                 print(
-                    f"❌ Insufficient funds for {symbol}: Need ₹{total_cost:,.2f}, Have ₹{self.cash:,.2f}"
+                    f"❌ Insufficient funds for {symbol}: Need ₹{transaction_value:,.2f}, Have ₹{self.cash:,.2f}"
                 )
                 return None
 
             # Deduct cash
-            self.cash -= total_cost
+            self.cash -= transaction_value
 
             # Add to holdings or update existing position
             existing_holding = next(
@@ -155,7 +150,6 @@ class BacktestBroker:
                     "action": "BUY",
                     "quantity": quantity,
                     "price": price,
-                    "transaction_cost": transaction_cost,
                     "cash_after": self.cash,
                 }
             )
@@ -177,9 +171,8 @@ class BacktestBroker:
             if holding["quantity"] == 0:
                 self.holdings.remove(holding)
 
-            # Add cash (minus transaction cost)
-            net_proceeds = transaction_value - transaction_cost
-            self.cash += net_proceeds
+            # Add cash
+            self.cash += transaction_value
 
             # Record transaction
             self.transactions.append(
@@ -189,7 +182,6 @@ class BacktestBroker:
                     "action": "SELL",
                     "quantity": quantity,
                     "price": price,
-                    "transaction_cost": transaction_cost,
                     "cash_after": self.cash,
                 }
             )
