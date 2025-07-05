@@ -11,6 +11,7 @@ app = typer.Typer(
     help="Xcelerator Alpha Strategy CLI - A momentum-based portfolio management system for Indian equities"
 )
 
+
 @app.command()
 def rebalance(
     top_n: int = typer.Option(15, help="Number of stocks to select"),
@@ -26,6 +27,7 @@ def rebalance(
     run_rebalance(
         top_n=top_n, band=band, cash_equivalent=cash, rank_day=rank_day, dry_run=dry_run
     )
+
 
 @app.command()
 def topup(

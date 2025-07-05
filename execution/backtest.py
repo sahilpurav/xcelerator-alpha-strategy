@@ -150,10 +150,10 @@ class BacktestEngine:
         # Check if strategy recommends cash equivalent (weak market)
         cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
         is_weak_market = any(
-            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"] 
+            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"]
             for rec in recommendations
         )
-        
+
         if is_weak_market:
             # Strategy recommends cash equivalent - treat as weak market
             # In backtest, just hold cash (no actual LIQUIDCASE position)
@@ -175,14 +175,19 @@ class BacktestEngine:
         for rec in recommendations:
             if rec["action"] == "BUY":
                 symbol_with_ns = f"{rec['symbol']}.NS"
-                if symbol_with_ns in price_data and date in price_data[symbol_with_ns].index:
+                if (
+                    symbol_with_ns in price_data
+                    and date in price_data[symbol_with_ns].index
+                ):
                     price = price_data[symbol_with_ns].loc[date, "Close"]
-                    new_stocks.append({
-                        "symbol": rec["symbol"],
-                        "quantity": 0,  # New stock, no existing quantity
-                        "last_price": price,
-                        "rank": rec["rank"]
-                    })
+                    new_stocks.append(
+                        {
+                            "symbol": rec["symbol"],
+                            "quantity": 0,  # New stock, no existing quantity
+                            "last_price": price,
+                            "rank": rec["rank"],
+                        }
+                    )
 
         # Generate execution plan using plan_rebalance
         exec_df = plan_rebalance(
@@ -225,7 +230,7 @@ class BacktestEngine:
         # Detect market regime from recommendations
         cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
         is_weak_market = any(
-            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"] 
+            rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"]
             for rec in recommendations
         )
 
@@ -233,10 +238,12 @@ class BacktestEngine:
         if is_weak_market:
             # In weak market, exit all equity positions and hold cash
             # Don't create actual LIQUIDCASE position - just hold cash in broker
-            
+
             # Check if we're already in cash (no equity holdings)
-            equity_holdings = [h for h in previous_holdings if h["symbol"] != cash_symbol_clean]
-            
+            equity_holdings = [
+                h for h in previous_holdings if h["symbol"] != cash_symbol_clean
+            ]
+
             if not equity_holdings:
                 return False, pd.DataFrame()  # Already in cash, no action needed
 
@@ -245,28 +252,37 @@ class BacktestEngine:
             for holding in equity_holdings:
                 symbol = holding["symbol"]
                 symbol_with_ns = f"{symbol}.NS"
-                if symbol_with_ns in price_data and date in price_data[symbol_with_ns].index:
+                if (
+                    symbol_with_ns in price_data
+                    and date in price_data[symbol_with_ns].index
+                ):
                     price = price_data[symbol_with_ns].loc[date, "Close"]
-                    removed_stocks.append({
-                        "symbol": symbol,
-                        "quantity": holding["quantity"],
-                        "last_price": price,
-                        "rank": None
-                    })
+                    removed_stocks.append(
+                        {
+                            "symbol": symbol,
+                            "quantity": holding["quantity"],
+                            "last_price": price,
+                            "rank": None,
+                        }
+                    )
 
             # Create execution plan to sell all equities (no new purchases)
             exec_df = pd.DataFrame()
             if removed_stocks:
                 sells_data = []
                 for stock in removed_stocks:
-                    sells_data.append({
-                        "Symbol": stock["symbol"],
-                        "Rank": "N/A",
-                        "Action": "SELL",
-                        "Price": round(stock["last_price"], 2),
-                        "Quantity": int(stock["quantity"]),
-                        "Invested": round(stock["quantity"] * stock["last_price"], 2),
-                    })
+                    sells_data.append(
+                        {
+                            "Symbol": stock["symbol"],
+                            "Rank": "N/A",
+                            "Action": "SELL",
+                            "Price": round(stock["last_price"], 2),
+                            "Quantity": int(stock["quantity"]),
+                            "Invested": round(
+                                stock["quantity"] * stock["last_price"], 2
+                            ),
+                        }
+                    )
                 exec_df = pd.DataFrame(sells_data)
 
             # Execute sell trades
@@ -283,28 +299,33 @@ class BacktestEngine:
             symbol = rec["symbol"]
             action = rec["action"]
             rank = rec["rank"]
-            
+
             # Skip cash equivalent in strong market recommendations
             if symbol == cash_symbol_clean:
                 continue
-                
+
             # Get price data for regular equities
             symbol_with_ns = f"{symbol}.NS"
-            if symbol_with_ns not in price_data or date not in price_data[symbol_with_ns].index:
+            if (
+                symbol_with_ns not in price_data
+                or date not in price_data[symbol_with_ns].index
+            ):
                 continue
             price = price_data[symbol_with_ns].loc[date, "Close"]
-            
+
             # Get existing quantity from holdings
-            existing_holding = next((h for h in previous_holdings if h["symbol"] == symbol), None)
+            existing_holding = next(
+                (h for h in previous_holdings if h["symbol"] == symbol), None
+            )
             quantity = existing_holding["quantity"] if existing_holding else 0
-            
+
             stock_entry = {
                 "symbol": symbol,
                 "quantity": quantity if action in ["HOLD", "SELL"] else 0,
                 "last_price": price,
-                "rank": rank
+                "rank": rank,
             }
-            
+
             if action == "BUY":
                 new_stocks.append(stock_entry)
             elif action == "HOLD":
@@ -399,10 +420,9 @@ class BacktestEngine:
         for date in trading_dates:
             # Track daily portfolio value
             self.track_portfolio_value(date, price_data)
-            
+
             # Apply liquid fund returns for current date
 
-            
             current_value = self.broker.get_portfolio_value(price_data, date)
             pct_change = (
                 ((current_value - last_portfolio_value) / last_portfolio_value * 100)

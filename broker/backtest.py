@@ -53,8 +53,6 @@ class BacktestBroker:
         """Get current cash balance."""
         return self.cash
 
-
-
     def get_portfolio_value(
         self, price_data: Dict[str, pd.DataFrame], date: pd.Timestamp
     ) -> float:
