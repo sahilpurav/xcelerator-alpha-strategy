@@ -111,7 +111,7 @@ def is_market_strong(
     price_data: dict[str, pd.DataFrame],
     benchmark_symbol: str = "^CRSLDX",
     as_of_date: pd.Timestamp = None,
-    breadth_threshold: float = 0.4,
+    breadth_threshold: float = 0.4
 ) -> bool:
     """
     Determines if the market is strong based on benchmark index and market breadth.
@@ -169,13 +169,11 @@ def is_market_strong(
         print("⚠️ Non-numeric values detected when checking market strength.")
         return False
 
-    # Check benchmark condition: Market is weak if price is below ALL three EMAs
-    benchmark_weak = (
-        latest_close < ema_22 and latest_close < ema_44 and latest_close < ema_66
-    )
+    # Check benchmark condition: Market is weak if price is below ALL EMAs
+    benchmark_weak = sum(latest_close < ema for ema in [ema_22, ema_44, ema_66]) == 3
 
     if benchmark_weak:
-        print("⚠️ Market is weak (benchmark below all EMAs), skipping ranking.")
+        print("⚠️ Market is weak (benchmark below All EMAs), skipping ranking.")
         return False
 
     # Check market breadth

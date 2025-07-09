@@ -8,7 +8,7 @@ from data.price_fetcher import download_and_cache_prices
 from data.universe_fetcher import get_universe_symbols
 from logic.display import display_execution_plan
 from logic.filters import apply_universe_filters
-from logic.planner import plan_rebalance
+from logic.planner import plan_allocation
 from logic.strategy import run_strategy
 from utils.market import get_last_trading_date, get_ranking_date
 
@@ -200,7 +200,7 @@ def run_rebalance(
     cash = broker.cash()
 
     # Plan smart rebalance
-    exec_df = plan_rebalance(
+    exec_df = plan_allocation(
         held_stocks=held_stocks,
         new_stocks=new_stocks,
         removed_stocks=removed_stocks,
@@ -237,7 +237,7 @@ def run_topup(dry_run: bool = False):
 
     print(f"\n💰 Adding ₹{cash} to portfolio...")
 
-    exec_df = plan_rebalance(
+    exec_df = plan_allocation(
         held_stocks=held_stocks,
         new_stocks=[],
         removed_stocks=[],

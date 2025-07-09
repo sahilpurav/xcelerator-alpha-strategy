@@ -7,7 +7,7 @@ import pandas as pd
 from broker.backtest import BacktestBroker
 from data.price_fetcher import download_and_cache_prices
 from data.universe_fetcher import get_universe_symbols
-from logic.planner import plan_rebalance
+from logic.planner import plan_allocation
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
 from utils.market import get_last_trading_date
@@ -188,8 +188,8 @@ class BacktestEngine:
                         }
                     )
 
-        # Generate execution plan using plan_rebalance
-        exec_df = plan_rebalance(
+        # Generate execution plan using plan_allocation
+        exec_df = plan_allocation(
             held_stocks=[],  # No existing holdings
             new_stocks=new_stocks,
             removed_stocks=[],  # No existing holdings to remove
@@ -337,7 +337,7 @@ class BacktestEngine:
             return True, pd.DataFrame()  # No changes needed
 
         # Generate execution plan
-        exec_df = plan_rebalance(
+        exec_df = plan_allocation(
             held_stocks=held_stocks,
             new_stocks=new_stocks,
             removed_stocks=removed_stocks,
@@ -682,10 +682,8 @@ def run_backtest(
             transactions_file = f"output/backtest-transactions-{start}-{end_date.strftime('%Y-%m-%d')}.csv"
             transaction_records = transactions_df.to_dict("records")
             if save_to_file(transaction_records, transactions_file):
-                print(f"� Transactions saved to: {transactions_file}")
+                print(f"💾 Transactions saved to: {transactions_file}")
             else:
                 print("⚠️ Caching is disabled - transactions were not saved")
-
-        print(f"\n💾 Results processed")
 
     return results

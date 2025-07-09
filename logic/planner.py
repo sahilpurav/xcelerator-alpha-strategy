@@ -166,7 +166,7 @@ def _allocate_leftover_iterative_equal_distribution(
     return updated_allocations, remaining_capital
 
 
-def _validate_smart_rebalance_inputs(
+def _validate_inputs(
     held_stocks: list[dict[str, str | float | int]],
     new_stocks: list[dict[str, str | float | int]],
     removed_stocks: list[dict[str, str | float | int]],
@@ -304,7 +304,7 @@ def _validate_smart_rebalance_inputs(
         raise ValueError(error_msg.rstrip(", "))
 
 
-def plan_rebalance(
+def plan_allocation(
     held_stocks: list[dict],
     new_stocks: list[dict],
     removed_stocks: list[dict],
@@ -314,14 +314,15 @@ def plan_rebalance(
     """Plan a rebalance based on current holdings and new entries."""
 
     # Validate inputs first
-    _validate_smart_rebalance_inputs(
+    _validate_inputs(
         held_stocks, new_stocks, removed_stocks, transaction_cost_pct
     )
 
     # Calculate freed capital from removed stocks
-    freed_capital = cash + sum(
+    sell_value = sum(
         stock["quantity"] * stock["last_price"] for stock in removed_stocks
     )
+    freed_capital = cash + sell_value
 
     if freed_capital <= 0:
         print("✅ Nothing to rebalance.")
@@ -331,9 +332,6 @@ def plan_rebalance(
         )
 
     # Calculate transaction costs
-    sell_value = sum(
-        stock["quantity"] * stock["last_price"] for stock in removed_stocks
-    )
     buy_value = freed_capital  # Assuming we'll use all freed capital for purchases
     total_traded_value = sell_value + buy_value
     transaction_cost = total_traded_value * transaction_cost_pct

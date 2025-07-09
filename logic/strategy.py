@@ -32,9 +32,7 @@ def run_strategy(
     """
 
     # Step 1: Check market strength
-    market_is_strong = is_market_strong(
-        price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date
-    )
+    market_is_strong = is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date)
 
     # Normalize cash symbol once
     cash_symbol_clean = cash_equivalent.replace(".NS", "")
