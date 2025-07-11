@@ -533,7 +533,7 @@ class BacktestEngine:
         df_values["daily_return"] = df_values["portfolio_value"].pct_change()
         df_values["cumulative_return"] = (
             df_values["portfolio_value"] / self.initial_capital - 1
-        ) * 100
+        )
 
         # Performance metrics
         total_return = (
@@ -670,7 +670,10 @@ def run_backtest(
         portfolio_file = (
             f"output/backtest-portfolio-{start}-{end_date.strftime('%Y-%m-%d')}.csv"
         )
-        portfolio_records = results["portfolio_values"].to_dict("records")
+        # Reset index to include date as a column and reorder columns
+        portfolio_df_with_date = results["portfolio_values"].reset_index()
+        portfolio_df_with_date = portfolio_df_with_date[["date", "portfolio_value", "daily_return", "cumulative_return"]]
+        portfolio_records = portfolio_df_with_date.to_dict("records")
         if save_to_file(portfolio_records, portfolio_file):
             print(f"📁 Portfolio values saved to: {portfolio_file}")
         else:
