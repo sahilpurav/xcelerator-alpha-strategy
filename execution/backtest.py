@@ -72,6 +72,7 @@ class BacktestEngine:
         self.portfolio_values = []
         self.rebalance_dates = []
         self.trade_count = 0
+        self.total_transaction_cost = 0.0
 
     def get_universe_and_price_data(
         self, start_date: pd.Timestamp, end_date: pd.Timestamp
@@ -189,12 +190,15 @@ class BacktestEngine:
                     )
 
         # Generate execution plan using plan_allocation
-        exec_df, _ = plan_allocation(
+        exec_df, transaction_cost = plan_allocation(
             held_stocks=[],  # No existing holdings
             new_stocks=new_stocks,
             removed_stocks=[],  # No existing holdings to remove
             cash=self.broker.cash,
         )
+
+        # Track transaction cost
+        self.total_transaction_cost += transaction_cost
 
         # Execute trades
         self._execute_backtest_orders(exec_df, date, price_data)
@@ -267,9 +271,15 @@ class BacktestEngine:
 
             # Create execution plan to sell all equities (no new purchases)
             exec_df = pd.DataFrame()
+            transaction_cost = 0.0
             if removed_stocks:
+                # Manually create execution plan for sells and calculate transaction costs
                 sells_data = []
                 for stock in removed_stocks:
+                    sell_value = stock["quantity"] * stock["last_price"]
+                    # Calculate transaction cost for this sell (same rate as plan_allocation uses)
+                    transaction_cost += sell_value * self.transaction_cost_pct
+                    
                     sells_data.append(
                         {
                             "Symbol": stock["symbol"],
@@ -277,12 +287,13 @@ class BacktestEngine:
                             "Action": "SELL",
                             "Price": round(stock["last_price"], 2),
                             "Quantity": int(stock["quantity"]),
-                            "Invested": round(
-                                stock["quantity"] * stock["last_price"], 2
-                            ),
+                            "Invested": round(sell_value, 2),
                         }
                     )
                 exec_df = pd.DataFrame(sells_data)
+
+            # Track transaction cost
+            self.total_transaction_cost += transaction_cost
 
             # Execute sell trades
             if not exec_df.empty:
@@ -337,12 +348,15 @@ class BacktestEngine:
             return True, pd.DataFrame()  # No changes needed
 
         # Generate execution plan
-        exec_df, _ = plan_allocation(
+        exec_df, transaction_cost = plan_allocation(
             held_stocks=held_stocks,
             new_stocks=new_stocks,
             removed_stocks=removed_stocks,
             cash=self.broker.cash,
         )
+
+        # Track transaction cost
+        self.total_transaction_cost += transaction_cost
 
         # Execute trades
         self._execute_backtest_orders(exec_df, date, price_data)
@@ -568,6 +582,21 @@ class BacktestEngine:
         excess_return = cagr - risk_free_rate * 100
         sharpe_ratio = excess_return / volatility if volatility > 0 else 0
 
+        # Adjusted metrics (accounting for transaction costs)
+        adjusted_final_value = df_values["portfolio_value"].iloc[-1] - self.total_transaction_cost
+        adjusted_total_return = (
+            (adjusted_final_value / self.initial_capital - 1) * 100
+        )
+        adjusted_cagr = (
+            (
+                (adjusted_final_value / self.initial_capital) ** (1 / years)
+                - 1
+            )
+            * 100
+            if years > 0
+            else 0
+        )
+
         return {
             "start_date": df_values.index[0],
             "end_date": df_values.index[-1],
@@ -575,11 +604,15 @@ class BacktestEngine:
             "final_value": df_values["portfolio_value"].iloc[-1],
             "total_return_pct": total_return,
             "cagr_pct": cagr,
+            "adjusted_final_value": adjusted_final_value,  # New
+            "adjusted_total_return_pct": adjusted_total_return,  # New
+            "adjusted_cagr_pct": adjusted_cagr,  # New
             "max_drawdown_pct": max_drawdown,
             "volatility_pct": volatility,
             "sharpe_ratio": sharpe_ratio,
             "total_trades": self.trade_count,
             "rebalance_count": len(self.rebalance_dates),
+            "total_transaction_cost": self.total_transaction_cost,
             "portfolio_values": df_values,
             "transactions": self.broker.get_transactions(),
         }
@@ -603,6 +636,16 @@ class BacktestEngine:
         print(f"⚡ Sharpe Ratio: {results['sharpe_ratio']:.2f}")
         print(f"🔄 Total Trades: {results['total_trades']}")
         print(f"📅 Rebalances: {results['rebalance_count']}")
+        print(f"💸 Transaction Costs: ₹{results['total_transaction_cost']:,.2f}")
+        print(
+            f"💎 Final Value (Adj.): ₹{results['adjusted_final_value']:,.2f}"  # New
+        )
+        print(
+            f"📊 Total Return (Adj.): {results['adjusted_total_return_pct']:.2f}%"  # New
+        )
+        print(
+            f"📈 CAGR (Adj.): {results['adjusted_cagr_pct']:.2f}%"  # New
+        )
         print("=" * 60)
 
 
