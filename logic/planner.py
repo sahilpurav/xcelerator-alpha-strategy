@@ -200,12 +200,6 @@ def _validate_inputs(
             "At least one of held_stocks, new_stocks, or removed_stocks must be non-empty"
         )
 
-    # 3. Business logic validation
-    if removed_stocks and not new_stocks:
-        raise ValueError(
-            "If there are removed_stocks, there must be new_stocks to deploy the freed capital"
-        )
-
     # 4. Data structure validation for each category
     def validate_stock_list(
         stocks: list[dict], category_name: str, expected_quantity_rule: str
