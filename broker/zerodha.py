@@ -180,18 +180,20 @@ class ZerodhaBroker:
             print(f"❌ Failed to fetch available funds: {e}")
             return None
 
-    def place_market_order(
-        self, symbol, quantity, exchange="NSE", transaction_type="BUY"
+    def place_order(
+        self, symbol, quantity, exchange="NSE", transaction_type="BUY", price=None
     ):
         try:
+            order_type = self.kite.ORDER_TYPE_MARKET if price is None else self.kite.ORDER_TYPE_LIMIT
             order_id = self.kite.place_order(
                 variety=self.kite.VARIETY_REGULAR,
                 exchange=exchange,
                 tradingsymbol=symbol,
                 transaction_type=transaction_type,
                 quantity=quantity,
-                order_type=self.kite.ORDER_TYPE_MARKET,
+                order_type=order_type,
                 product=self.kite.PRODUCT_CNC,
+                price=price,
             )
             print(f"✅ Order placed: {order_id}")
             return order_id

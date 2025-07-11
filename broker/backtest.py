@@ -82,7 +82,7 @@ class BacktestBroker:
 
         return self.cash + holdings_value
 
-    def place_market_order(
+    def place_order(
         self,
         symbol: str,
         quantity: int,

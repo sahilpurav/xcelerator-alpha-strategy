@@ -52,7 +52,7 @@ def display_portfolio_table(data: list[dict], label_map: dict, tsv: bool = False
     print(f"📌 Total Current Value  : ₹{total_current:,.2f}")
 
 
-def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0):
+def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0, transaction_cost: float = 0.0):
     """
     Displays the execution plan in a user-friendly format.
 
@@ -62,8 +62,7 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0):
     """
     title_map = {
         "rebalance": "🔄 Portfolio Rebalancing Plan",
-        "initial": "🎯 Initial Investment Plan",
-        "top-up": "📈 Top-up Investment Plan",
+        "topup": "📈 Top-up Investment Plan",
     }
     title = title_map.get(type, "Execution Plan")
 
@@ -88,6 +87,7 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0):
     buy_amount = trade_df[trade_df["Action"] == "BUY"]["Invested"].sum()
     sell_amount = trade_df[trade_df["Action"] == "SELL"]["Invested"].sum()
     hold_amount = trade_df[trade_df["Action"] == "HOLD"]["Invested"].sum()
+    total_traded_value = buy_amount + sell_amount
 
     # Print the execution plan
     print(exec_df[available_cols].to_string(index=False))
@@ -100,14 +100,17 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0):
     if type == "rebalance":
         portfolio_value_before = hold_amount + sell_amount + cash
         portfolio_value_after = hold_amount + buy_amount
-        print(f"📊 Portfolio Value (Before) : ₹{portfolio_value_before:,.2f}")
-        print(f"📈 Portfolio Value (After)  : ₹{portfolio_value_after:,.2f}")
+        remaining_cash = portfolio_value_after - portfolio_value_before
+        print(f"📊 Portfolio Value (Before)   : ₹{portfolio_value_before:,.2f}")
+        print(f"📈 Portfolio Value (After)    : ₹{portfolio_value_after:,.2f}")
 
-    elif type == "initial":
-        print(f"🎯 Total Portfolio Value    : ₹{buy_amount:,.2f}")
+    elif type == "topup":
+        print(f"💰 Available Cash             : ₹{cash:,.2f}")
+        remaining_cash = cash - total_traded_value
 
-    elif type == "top-up":
-        print(f"💰 Total Top-up Allocation  : ₹{buy_amount:,.2f}")
+    print(f"🔄 Total Traded Value         : ₹{total_traded_value:,.2f}")
+    print(f"💸 Total Remaining Cash       : ₹{remaining_cash:,.2f}")
+    print(f"💸 Reserved Transaction Cost  : ₹{transaction_cost:,.2f}")
 
     if Config.ENABLE_TWILIO_WHATSAPP:
         print("📱 Sending notification on WhatsApp...")

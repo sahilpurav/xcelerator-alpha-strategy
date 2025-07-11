@@ -437,4 +437,4 @@ def plan_allocation(
 
     execution_data = sorted(execution_data, key=lambda x: (x["Action"]), reverse=True)
 
-    return pd.DataFrame(execution_data)
+    return pd.DataFrame(execution_data), transaction_cost

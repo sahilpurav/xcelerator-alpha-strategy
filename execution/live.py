@@ -31,7 +31,7 @@ def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
 
 
 def _execute_orders(
-    exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool = False
+    exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool = False, limit_order = False
 ):
     """
     Executes the given execution plan using the broker API.
@@ -54,8 +54,8 @@ def _execute_orders(
             if not dry_run:
                 try:
                     print("\n📡 Placing live orders via broker...")
-                    broker.place_market_order(symbol, quantity, transaction_type=action)
-                    time.sleep(1)  # Avoid hitting API rate limits
+                    price = row["Price"] if limit_order else None
+                    broker.place_order(symbol, quantity, transaction_type=action, price=price)
                 except Exception as e:
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
@@ -200,14 +200,14 @@ def run_rebalance(
     cash = broker.cash()
 
     # Plan smart rebalance
-    exec_df = plan_allocation(
+    exec_df, transaction_cost = plan_allocation(
         held_stocks=held_stocks,
         new_stocks=new_stocks,
         removed_stocks=removed_stocks,
         cash=cash,
     )
 
-    display_execution_plan(exec_df, "rebalance", cash=cash)
+    display_execution_plan(exec_df, "rebalance", cash, transaction_cost)
     _execute_orders(exec_df, broker, dry_run=dry_run)
 
 
@@ -237,7 +237,7 @@ def run_topup(dry_run: bool = False):
 
     print(f"\n💰 Adding ₹{cash} to portfolio...")
 
-    exec_df = plan_allocation(
+    exec_df, transaction_cost = plan_allocation(
         held_stocks=held_stocks,
         new_stocks=[],
         removed_stocks=[],
@@ -247,5 +247,5 @@ def run_topup(dry_run: bool = False):
     # Remove Action="HOLD" rows from exec_df
     exec_df = exec_df[exec_df["Action"] != "HOLD"]
 
-    display_execution_plan(exec_df, "rebalance", cash=cash)
-    _execute_orders(exec_df, broker, dry_run=dry_run)
+    display_execution_plan(exec_df, "topup", cash, transaction_cost)
+    _execute_orders(exec_df, broker, dry_run=dry_run, limit_order=True)

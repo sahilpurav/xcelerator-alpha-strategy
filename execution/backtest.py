@@ -189,7 +189,7 @@ class BacktestEngine:
                     )
 
         # Generate execution plan using plan_allocation
-        exec_df = plan_allocation(
+        exec_df, _ = plan_allocation(
             held_stocks=[],  # No existing holdings
             new_stocks=new_stocks,
             removed_stocks=[],  # No existing holdings to remove
@@ -337,7 +337,7 @@ class BacktestEngine:
             return True, pd.DataFrame()  # No changes needed
 
         # Generate execution plan
-        exec_df = plan_allocation(
+        exec_df, _ = plan_allocation(
             held_stocks=held_stocks,
             new_stocks=new_stocks,
             removed_stocks=removed_stocks,
@@ -371,7 +371,7 @@ class BacktestEngine:
                 price = float(row["Price"])
 
                 if quantity > 0:
-                    order_id = self.broker.place_market_order(
+                    order_id = self.broker.place_order(
                         symbol=symbol,
                         quantity=quantity,
                         transaction_type=action,
