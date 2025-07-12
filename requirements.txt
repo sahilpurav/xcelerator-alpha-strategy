@@ -1,33 +1,13 @@
-# CLI framework
 typer
-
-# Data handling
 pandas
 pandas-stubs
 numpy
-
-# Yahoo Finance for price data
 yfinance
-
-# Environment variable loader
 python-dotenv
-
-# Package Upgrade
 pip-review
-
-# Broker API
 kiteconnect
 onetimepass
-
-# Optimisations
-scipy
-
-# PDF Extraction tool
-PyPDF2
-
 twilio
-
-# Dev tools
 black
 isort
 basedpyright
