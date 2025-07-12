@@ -186,12 +186,13 @@ python cli.py backtest --start 2020-01-01
 
 # Custom parameters
 python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
-  --rebalance-day Wednesday --band 7 --cash "LIQUIDCASE.NS"
+  --initial-capital 2000000 --rebalance-day Wednesday --band 7 --cash "LIQUIDCASE.NS"
 ```
 
 **Parameters:**
 - `--start`: Start date in YYYY-MM-DD format (required)
 - `--end`: End date in YYYY-MM-DD format (optional, defaults to the last trading day)
+- `--initial-capital`: Initial capital for backtest in rupees (default: ₹10,00,000)
 - `--rebalance-day`: Day of week for rebalancing (default: Wednesday)
 - `--band`: Band size for portfolio stability (default: 5)
 - `--top-n`: Number of stocks to select (default: 15)
@@ -216,7 +217,7 @@ Deletes all cached files and resets the strategy state, including removing cache
 | `topup`     | `--dry-run`                                               | Add capital to existing portfolio |
 | `holdings`  | `--tsv`                                                    | View current portfolio holdings |
 | `positions` | `--tsv`                                                    | View current trading positions  |
-| `backtest`  | `--start`, `--end`, `--rebalance-day`, `--band`, `--cash` | Historical strategy testing     |
+| `backtest`  | `--start`, `--end`, `--initial-capital`, `--rebalance-day`, `--band`, `--cash` | Historical strategy testing     |
 | `clean`     | -                                                          | Reset cached data and state     |
 
 ## 🔒 Dry Run Mode

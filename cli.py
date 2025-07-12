@@ -59,6 +59,9 @@ def backtest(
     end: str | None = typer.Option(
         None, help="Optional end date (YYYY-MM-DD). Defaults to today."
     ),
+    initial_capital: float = typer.Option(
+        1_000_000, help="Initial capital for backtest (default ₹10 lakh)"
+    ),
     rebalance_day: str = typer.Option(
         "Wednesday",
         help="Day of week for rebalancing (Monday, Tuesday, Wednesday, Thursday, Friday)",
@@ -70,7 +73,7 @@ def backtest(
     cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
 ):
     """Run the backtest for Xcelerator Alpha Strategy."""
-    run_backtest(start, end, rebalance_day, band, top_n, cash)
+    run_backtest(start, end, initial_capital, rebalance_day, band, top_n, cash)
 
 
 if __name__ == "__main__":

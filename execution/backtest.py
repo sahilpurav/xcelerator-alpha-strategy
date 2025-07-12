@@ -676,6 +676,7 @@ def wrap_symbols(symbols: list[str], width: int = 65) -> str:
 def run_backtest(
     start: str,
     end: str | None = None,
+    initial_capital: float = 1_000_000,
     rebalance_day: str = "Wednesday",
     band: int = 5,
     top_n: int = 15,
@@ -697,7 +698,7 @@ def run_backtest(
 
     # Initialize and run backtest
     engine = BacktestEngine(
-        initial_capital=10_00_000,  # Default 10 lakh
+        initial_capital=initial_capital,  # Default 10 lakh
         top_n=top_n,
         band=band,
         rebalance_frequency="W",
