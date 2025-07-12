@@ -678,6 +678,7 @@ def run_backtest(
     end: str | None = None,
     rebalance_day: str = "Wednesday",
     band: int = 5,
+    top_n: int = 15,
     cash_equivalent: str = "LIQUIDCASE.NS",
 ):
     """
@@ -697,7 +698,7 @@ def run_backtest(
     # Initialize and run backtest
     engine = BacktestEngine(
         initial_capital=10_00_000,  # Default 10 lakh
-        top_n=15,
+        top_n=top_n,
         band=band,
         rebalance_frequency="W",
         rebalance_day=rebalance_day,

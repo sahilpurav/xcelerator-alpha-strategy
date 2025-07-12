@@ -66,10 +66,11 @@ def backtest(
     band: int = typer.Option(
         5, help="Band size for portfolio stability (higher = less churn)"
     ),
+    top_n: int = typer.Option(15, help="Number of stocks to select"),
     cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
 ):
     """Run the backtest for Xcelerator Alpha Strategy."""
-    run_backtest(start, end, rebalance_day, band, cash)
+    run_backtest(start, end, rebalance_day, band, top_n, cash)
 
 
 if __name__ == "__main__":
