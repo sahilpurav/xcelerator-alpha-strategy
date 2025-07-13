@@ -5,7 +5,7 @@ import pandas as pd
 
 from broker.zerodha import ZerodhaBroker
 from data.price_fetcher import download_and_cache_prices
-from data.universe_fetcher import get_universe_symbols
+from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
 from logic.display import display_execution_plan
 from logic.filters import apply_universe_filters
 from logic.planner import plan_allocation
@@ -13,11 +13,11 @@ from logic.strategy import run_strategy
 from utils.market import get_last_trading_date, get_ranking_date
 
 
-def _get_filtered_universe() -> list[str]:
+def _get_filtered_universe(universe: str = "nifty500") -> list[str]:
     """
     Fetches the universe of symbols, applies filters, and returns the filtered list.
     """
-    universe = get_universe_symbols("nifty500")
+    universe = get_universe_symbols(universe)
     return apply_universe_filters(universe)
 
 
@@ -97,6 +97,7 @@ def run_rebalance(
     cash_equivalent: str = "LIQUIDCASE.NS",
     rank_day: str | None = None,
     dry_run: bool = False,
+    universe: str = "nifty500",
 ):
     """
     Executes a rebalancing strategy that adapts to market conditions.
@@ -119,10 +120,12 @@ def run_rebalance(
         rank_day (str, optional): Day of week for ranking (Monday, Tuesday, Wednesday, etc.).
                                  If None, uses the latest trading day for both ranking and execution.
         dry_run (bool): If True, simulates execution without placing orders
+        universe (str): Universe to use (nifty500, nifty100)
     """
 
-    exec_date = pd.to_datetime(get_last_trading_date())
-    ranking_date = pd.to_datetime(get_ranking_date(rank_day))
+    benchmark_symbol = get_benchmark_symbol(universe)
+    exec_date = pd.to_datetime(get_last_trading_date(benchmark_symbol))
+    ranking_date = pd.to_datetime(get_ranking_date(benchmark_symbol, rank_day))
 
     print(f"\n🔄 Running weekly rebalance strategy as of {exec_date.date()}...")
     if ranking_date != exec_date:
@@ -130,10 +133,10 @@ def run_rebalance(
             f"📊 Using rankings from {ranking_date.date()} (last {rank_day or 'trading day'})"
         )
 
-    universe = _get_filtered_universe()
-    universe_symbols = [f"{s}.NS" for s in universe]
+    universe_symbols_list = _get_filtered_universe(universe)
+    universe_symbols = [f"{s}.NS" for s in universe_symbols_list]
 
-    price_symbols = list(set(universe_symbols + [cash_equivalent, "^CRSLDX"]))
+    price_symbols = list(set(universe_symbols + [cash_equivalent, benchmark_symbol]))
     price_data = _get_latest_prices(price_symbols, exec_date)
 
     broker = ZerodhaBroker()
@@ -147,6 +150,7 @@ def run_rebalance(
         price_data,
         ranking_date,
         held_symbols,
+        benchmark_symbol,
         top_n,
         band,
         cash_equivalent=cash_equivalent,
@@ -211,12 +215,13 @@ def run_rebalance(
     _execute_orders(exec_df, broker, dry_run=dry_run)
 
 
-def run_topup(dry_run: bool = False):
+def run_topup(dry_run: bool = False, universe: str = "nifty500"):
     """
     Adds capital to the existing portfolio by executing a market order for the cash equivalent.
 
     Args:
         dry_run (bool): If True, simulates execution without placing orders
+        universe (str): Universe to use (nifty500, nifty100)
     """
     broker = ZerodhaBroker()
     raw_holdings = broker.get_holdings()

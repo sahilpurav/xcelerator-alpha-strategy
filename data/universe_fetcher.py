@@ -7,6 +7,29 @@ import requests
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
 
 
+def get_benchmark_symbol(universe: str = "nifty500") -> str:
+    """
+    Get the benchmark symbol based on the universe.
+
+    Args:
+        universe (str): Universe name (e.g., "nifty500", "nifty100")
+
+    Returns:
+        str: Yahoo Finance benchmark symbol
+    """
+    universe_to_symbol = {
+        "nifty500": "^CRSLDX",
+        "nifty100": "^CNX100",
+    }
+
+    if universe not in universe_to_symbol:
+        raise ValueError(
+            f"Unsupported universe: {universe}. Supported universes: {list(universe_to_symbol.keys())}"
+        )
+
+    return universe_to_symbol[universe]
+
+
 def get_universe_symbols(
     universe: str = "nifty500", cache_dir: str = "cache/universe"
 ) -> list[str]:

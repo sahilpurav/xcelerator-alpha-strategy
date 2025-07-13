@@ -6,7 +6,7 @@ import pandas as pd
 
 from broker.backtest import BacktestBroker
 from data.price_fetcher import download_and_cache_prices
-from data.universe_fetcher import get_universe_symbols
+from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
 from logic.planner import plan_allocation
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
@@ -47,6 +47,7 @@ class BacktestEngine:
         self.rebalance_day = rebalance_day.lower()
         self.transaction_cost_pct = transaction_cost_pct
         self.cash_equivalent = cash_equivalent
+        self.benchmark_symbol = None  # Will be set when run_backtest is called
 
         # Map day names to weekday numbers (Monday=0, Sunday=6)
         self.day_mapping = {
@@ -75,16 +76,19 @@ class BacktestEngine:
         self.total_transaction_cost = 0.0
 
     def get_universe_and_price_data(
-        self, start_date: pd.Timestamp, end_date: pd.Timestamp
+        self, start_date: pd.Timestamp, end_date: pd.Timestamp, universe: str = "nifty500"
     ) -> tuple[list[str], dict[str, pd.DataFrame]]:
         """
         Get filtered universe and historical price data.
         """
         # Get universe (without ASM/GSM filtering for backtest)
-        universe = get_universe_symbols("nifty500")
+        universe_symbols = get_universe_symbols(universe)
+
+        # Get benchmark symbol for this universe
+        benchmark_symbol = get_benchmark_symbol(universe)
 
         # Add .NS suffix for price fetching
-        symbols = [f"{s}.NS" for s in universe] + ["^CRSLDX"]
+        symbols = [f"{s}.NS" for s in universe_symbols] + [benchmark_symbol]
 
         # Fetch historical data
         start_str = (start_date - timedelta(days=400)).strftime(
@@ -94,7 +98,7 @@ class BacktestEngine:
 
         price_data = download_and_cache_prices(symbols, start=start_str, end=end_str)
 
-        return universe, price_data
+        return universe_symbols, price_data
 
     def get_rebalance_dates(
         self, start_date: pd.Timestamp, end_date: pd.Timestamp
@@ -142,6 +146,7 @@ class BacktestEngine:
             price_data,
             date,
             [],  # No holdings yet
+            self.benchmark_symbol,
             self.top_n,
             self.band,
             cash_equivalent=self.cash_equivalent,
@@ -225,6 +230,7 @@ class BacktestEngine:
             price_data,
             date,
             held_symbols,
+            self.benchmark_symbol,
             self.top_n,
             self.band,
             cash_equivalent=self.cash_equivalent,
@@ -405,15 +411,18 @@ class BacktestEngine:
         portfolio_value = self.broker.get_portfolio_value(price_data, date)
         self.portfolio_values.append((date, portfolio_value))
 
-    def run_backtest(self, start_date: pd.Timestamp, end_date: pd.Timestamp) -> dict:
+    def run_backtest(self, start_date: pd.Timestamp, end_date: pd.Timestamp, universe: str = "nifty500") -> dict:
         """
         Run the complete backtest.
 
         Returns:
             Dictionary with backtest results and performance metrics
         """
+        # Set the benchmark symbol for this universe
+        self.benchmark_symbol = get_benchmark_symbol(universe)
+        
         # Get data
-        universe, price_data = self.get_universe_and_price_data(start_date, end_date)
+        _, price_data = self.get_universe_and_price_data(start_date, end_date, universe)
 
         # Get rebalance dates
         rebalance_dates = self.get_rebalance_dates(start_date, end_date)
@@ -423,8 +432,8 @@ class BacktestEngine:
         last_portfolio_value = self.initial_capital
 
         # Get all trading dates for daily portfolio tracking
-        if "^CRSLDX" in price_data:
-            all_dates = price_data["^CRSLDX"].index
+        if self.benchmark_symbol in price_data:
+            all_dates = price_data[self.benchmark_symbol].index
             trading_dates = [d for d in all_dates if start_date <= d <= end_date]
         else:
             trading_dates = rebalance_dates
@@ -681,6 +690,8 @@ def run_backtest(
     band: int = 5,
     top_n: int = 15,
     cash_equivalent: str = "LIQUIDCASE.NS",
+    universe: str = "nifty500",
+    rebalance_frequency: str = "W",
 ):
     """
     Main entry point for backtesting from CLI.
@@ -694,19 +705,20 @@ def run_backtest(
         cash_equivalent: Symbol to use as cash equivalent (for detecting weak market)
     """
     start_date = pd.to_datetime(start)
-    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date())
+    benchmark_symbol = get_benchmark_symbol(universe)
+    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date(benchmark_symbol))
 
     # Initialize and run backtest
     engine = BacktestEngine(
         initial_capital=initial_capital,  # Default 10 lakh
         top_n=top_n,
         band=band,
-        rebalance_frequency="W",
+        rebalance_frequency=rebalance_frequency,
         rebalance_day=rebalance_day,
         cash_equivalent=cash_equivalent,
     )
 
-    results = engine.run_backtest(start_date, end_date)
+    results = engine.run_backtest(start_date, end_date, universe)
 
     # Save results to output folder
     if results:

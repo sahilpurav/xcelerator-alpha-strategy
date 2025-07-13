@@ -1,10 +1,11 @@
 # 📈 Xcelerator Alpha Strategy (Weekly Rebalance)
 
 A fully rule-based, momentum-driven strategy built for Indian equities using Python and Zerodha Kite Connect.  
-This strategy selects high-momentum stocks from the Nifty 500 universe and manages live rebalances, top-ups, and exits with automated broker execution.
+This strategy selects high-momentum stocks from the **Nifty 500** or **Nifty 100** universe and manages live rebalances, top-ups, and exits with automated broker execution.
 
 ## 🚀 Features
 
+- ✅ **Multi-universe support** (Nifty 500 & Nifty 100 with appropriate benchmarks)
 - ✅ Composite momentum scoring (returns + RSI + 52W high proximity)
 - ✅ Weekly rebalancing with band logic (no churn unless needed)
 - ✅ Smart top-ups based on current portfolio weights
@@ -116,8 +117,8 @@ python cli.py rebalance
 # Dry run mode (simulation without live orders)
 python cli.py rebalance --dry-run
 
-# Custom parameters
-python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE.NS" --rank-day "Wednesday" --dry-run
+# Custom parameters with Nifty 100 universe
+python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE.NS" --rank-day "Wednesday" --universe nifty100 --dry-run
 ```
 
 **Parameters:**
@@ -126,6 +127,7 @@ python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE.NS" --rank-day "W
 - `--cash`: Cash equivalent symbol (default: "LIQUIDCASE.NS")
 - `--rank-day`: Day of week for ranking (e.g., Monday, Tuesday). Defaults to the latest trading day.
 - `--dry-run`: Simulate without placing orders (default: False)
+- `--universe`: Universe to use - "nifty500" or "nifty100" (default: nifty500)
 
 #### Add Capital (Top-Up)
 
@@ -135,12 +137,13 @@ Add capital to the existing portfolio:
 # Standard top-up
 python cli.py topup
 
-# Dry run mode (simulation without live orders)
-python cli.py topup --dry-run
+# Dry run mode with universe selection
+python cli.py topup --universe nifty100 --dry-run
 ```
 
 **Parameters:**
 - `--dry-run`: Simulate without placing orders (default: False)
+- `--universe`: Universe to use - "nifty500" or "nifty100" (default: nifty500)
 
 ### 📊 Portfolio Monitoring
 
@@ -181,12 +184,15 @@ python cli.py positions --tsv
 Test the strategy on historical data:
 
 ```bash
-# Basic backtest
+# Basic backtest with Nifty 500 (default)
 python cli.py backtest --start 2020-01-01
 
-# Custom parameters
+# Backtest with Nifty 100 universe
+python cli.py backtest --start 2020-01-01 --universe nifty100
+
+# Custom parameters with Nifty 100
 python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
-  --initial-capital 2000000 --rebalance-day Wednesday --band 7 --cash "LIQUIDCASE.NS"
+  --initial-capital 2000000 --rebalance-day Wednesday --band 7 --universe nifty100
 ```
 
 **Parameters:**
@@ -197,6 +203,7 @@ python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
 - `--band`: Band size for portfolio stability (default: 5)
 - `--top-n`: Number of stocks to select (default: 15)
 - `--cash`: Cash equivalent symbol (default: "LIQUIDCASE.NS")
+- `--universe`: Universe to use - "nifty500" or "nifty100" (default: nifty500)
 
 #### Cache Management
 
@@ -209,15 +216,38 @@ python cli.py clean
 **Description:**
 Deletes all cached files and resets the strategy state, including removing cached price data and output files.
 
+### 🌌 Universe Selection
+
+The strategy supports two stock universes:
+
+#### Nifty 500 (Default)
+- **Symbol Pool**: Top 500 companies by market cap
+- **Benchmark**: ^CRSLDX (Nifty 500 TRI)
+- **Use Case**: Broader diversification, includes mid-cap exposure
+- **Command**: `--universe nifty500` (or omit for default)
+
+#### Nifty 100
+- **Symbol Pool**: Top 100 companies by market cap  
+- **Benchmark**: ^CNX100 (Nifty 100)
+- **Use Case**: Large-cap focused, lower volatility
+- **Command**: `--universe nifty100`
+
+```bash
+# Examples
+python cli.py rebalance --universe nifty500  # Default behavior
+python cli.py rebalance --universe nifty100  # Large-cap focused
+python cli.py backtest --start 2020-01-01 --universe nifty100
+```
+
 ### 📋 CLI Parameters Reference
 
 | Command     | Key Parameters                                             | Description                     |
 | ----------- | ---------------------------------------------------------- | ------------------------------- |
-| `rebalance` | `--top-n`, `--band`, `--cash`, `--rank-day`, `--dry-run`   | Weekly momentum rebalancing     |
-| `topup`     | `--dry-run`                                               | Add capital to existing portfolio |
+| `rebalance` | `--top-n`, `--band`, `--cash`, `--rank-day`, `--universe`, `--dry-run`   | Weekly momentum rebalancing     |
+| `topup`     | `--universe`, `--dry-run`                                               | Add capital to existing portfolio |
 | `holdings`  | `--tsv`                                                    | View current portfolio holdings |
 | `positions` | `--tsv`                                                    | View current trading positions  |
-| `backtest`  | `--start`, `--end`, `--initial-capital`, `--rebalance-day`, `--band`, `--cash` | Historical strategy testing     |
+| `backtest`  | `--start`, `--end`, `--initial-capital`, `--rebalance-day`, `--band`, `--universe` | Historical strategy testing     |
 | `clean`     | -                                                          | Reset cached data and state     |
 
 ## 🔒 Dry Run Mode
@@ -227,6 +257,12 @@ The rebalance command supports dry run mode for safe testing:
 ```bash
 # Test rebalance logic without executing trades
 python cli.py rebalance --top-n 20 --band 5 --dry-run
+
+# Test different universe without risk
+python cli.py rebalance --universe nifty100 --dry-run
+
+# Test backtest parameters before running full backtest
+python cli.py backtest --start 2023-01-01 --universe nifty100 --dry-run
 ```
 
 **Benefits of Dry Run Mode:**

@@ -8,12 +8,12 @@ from logic.indicators import calculate_dma, calculate_ema
 
 
 @lru_cache(maxsize=1)
-def get_market_data(symbol: str = "^CRSLDX", period: str = "14d") -> pd.DataFrame:
+def get_market_data(symbol: str, period: str = "14d") -> pd.DataFrame:
     """
     Downloads and caches market data for the specified symbol and period.
 
     Args:
-        symbol: Yahoo Finance symbol (default: ^CRSLDX for Nifty 500)
+        symbol: Yahoo Finance symbol (e.g., "^CRSLDX", "^CNX100")
         period: Lookback period for data (default: 14d)
 
     Returns:
@@ -27,7 +27,7 @@ def get_market_data(symbol: str = "^CRSLDX", period: str = "14d") -> pd.DataFram
     return df
 
 
-def get_last_trading_date(symbol: str = "^CRSLDX") -> str:
+def get_last_trading_date(symbol: str) -> str:
     """
     Returns the last trading day as a string in YYYY-MM-DD format
     using available data from Yahoo Finance for the given index symbol.
@@ -39,7 +39,7 @@ def get_last_trading_date(symbol: str = "^CRSLDX") -> str:
     return pd.to_datetime(last_date).strftime("%Y-%m-%d")
 
 
-def get_ranking_date(day_of_week: str = None, symbol: str = "^CRSLDX") -> str:
+def get_ranking_date(symbol: str, day_of_week: str = None) -> str:
     """
     Returns the most recent specified weekday (e.g., Wednesday) that was a trading day.
     If no trading day is found for the specified weekday in the last 14 days,
@@ -102,14 +102,14 @@ def is_market_open_now() -> bool:
 
     # Now check if today is an actual NSE trading day
     india_today_str = now.strftime("%Y-%m-%d")
-    last_trading_day_str = get_last_trading_date()
+    last_trading_day_str = get_last_trading_date("^CRSLDX")  # Using nifty500 as default for market open check
 
     return india_today_str == last_trading_day_str
 
 
 def is_market_strong(
     price_data: dict[str, pd.DataFrame],
-    benchmark_symbol: str = "^CRSLDX",
+    benchmark_symbol: str,
     as_of_date: pd.Timestamp = None,
     breadth_threshold: float = 0.4
 ) -> bool:
@@ -122,9 +122,9 @@ def is_market_strong(
 
     Args:
         price_data (dict): Dictionary of symbol -> OHLCV DataFrame (must include benchmark symbol)
-        benchmark_symbol (str): Symbol for benchmark index (default: "^CRSLDX")
+        benchmark_symbol (str): Symbol for benchmark index (e.g., "^CRSLDX", "^CNX100")
         as_of_date (pd.Timestamp, optional): Date to calculate metrics for
-        breadth_threshold (float): Minimum breadth ratio required (default: 0.5 = 50%)
+        breadth_threshold (float): Minimum breadth ratio required (default: 0.4 = 40%)
 
     Returns:
         bool: True if the market is strong, False otherwise.
@@ -200,7 +200,7 @@ def _get_market_breadth_ratio(
 ) -> float:
     """
     Calculates the percentage of stocks trading above their n-day DMA as of a specific date.
-    Excludes benchmark indices (^CRSLDX) from the calculation.
+    Excludes benchmark indices (symbols starting with ^) from the calculation.
 
     Args:
         price_data: Dictionary of symbol -> OHLCV DataFrame

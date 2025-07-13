@@ -25,8 +25,15 @@ def is_cache_stale_or_missing(
     if not symbols:
         return True
 
-    # Always check ^CRSLDX first if it's in the list
-    check_symbol = "^CRSLDX" if "^CRSLDX" in symbols else symbols[0]
+    # Check which benchmark symbol to use for cache validation
+    # Priority: ^CRSLDX (nifty500), then ^CNX100 (nifty100), then first symbol
+    check_symbol = None
+    if "^CRSLDX" in symbols:
+        check_symbol = "^CRSLDX"
+    elif "^CNX100" in symbols:
+        check_symbol = "^CNX100"
+    else:
+        check_symbol = symbols[0]
     check_path = os.path.join(cache_dir, f"{check_symbol}.csv")
 
     # Check if cache exists
@@ -69,7 +76,7 @@ def is_cache_stale_or_missing(
 
         # Check if we have latest data
         last_cached_date = pd.to_datetime(df.index.max()).normalize()
-        last_trading_day = pd.to_datetime(get_last_trading_date()).normalize()
+        last_trading_day = pd.to_datetime(get_last_trading_date("^CRSLDX")).normalize()  # Using nifty500 for cache check
 
         if last_cached_date < last_trading_day:
             print(

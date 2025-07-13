@@ -8,6 +8,7 @@ def run_strategy(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     held_symbols: list[str],
+    benchmark_symbol: str,
     top_n: int = 15,
     band: int = 5,
     weights: tuple[float, float, float] = (0.8, 0.1, 0.1),
@@ -21,6 +22,7 @@ def run_strategy(
         price_data: Dictionary of symbol -> DataFrame with OHLCV data
         as_of_date: Date for strategy execution
         held_symbols: Currently held stock symbols
+        benchmark_symbol: Symbol for benchmark index (e.g., "^CRSLDX", "^CNX100")
         top_n: Target number of stocks in portfolio
         band: Band size for determining when to sell held stocks
         weights: Tuple of (return_weight, rsi_weight, proximity_weight) for ranking
@@ -32,7 +34,7 @@ def run_strategy(
     """
 
     # Step 1: Check market strength
-    market_is_strong = is_market_strong(price_data, benchmark_symbol="^CRSLDX", as_of_date=as_of_date)
+    market_is_strong = is_market_strong(price_data, benchmark_symbol=benchmark_symbol, as_of_date=as_of_date)
 
     # Normalize cash symbol once
     cash_symbol_clean = cash_equivalent.replace(".NS", "")
