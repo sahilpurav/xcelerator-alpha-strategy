@@ -5,7 +5,7 @@ from logic.display import display_portfolio_table
 def run_holdings_display(tsv: bool = False):
     """Display current holdings and their details."""
     broker = ZerodhaBroker()
-    portfolio = broker.get_holdings()
+    portfolio = sorted(broker.get_holdings(), key=lambda x: x["symbol"])
 
     display_portfolio_table(
         portfolio,
