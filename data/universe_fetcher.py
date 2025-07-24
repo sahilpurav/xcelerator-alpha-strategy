@@ -73,7 +73,8 @@ def get_universe_symbols(
             raise Exception(f"Failed to fetch data from {url}")
         df = pd.read_csv(StringIO(response.text))
 
-    symbols = df["Symbol"].dropna().unique().tolist()
+    # We need to extract the Symbol when series is EQ
+    symbols = df[df["Series"] == "EQ"]["Symbol"].dropna().unique().tolist()
 
     # Exclude symbols starting with "DUMMY" and return the rest
     return [s for s in symbols if not s.startswith("DUMMY")]

@@ -95,13 +95,6 @@ class ZerodhaBroker:
             )
 
         return rows
-    
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """
-        Normalize trading symbol by removing NSE suffixes like -BE, -EQ, -BZ, -BL, etc.
-        """
-        return re.sub(r'-(BE|EQ|BZ|BL|IL|SM|ST)$', '', symbol.strip().upper())
 
     def get_holdings(self) -> list[dict]:
         """
@@ -112,15 +105,11 @@ class ZerodhaBroker:
         holdings_raw = self.kite.holdings()
         positions_raw = self.kite.positions()["net"]
 
-        # # Filter out SGB holdings -- TODO: remove this later
-        # holdings_raw = [entry for entry in holdings_raw if not entry['tradingsymbol'].startswith('SGB')]
-
         holdings = {}
 
         # Step 1: Start with holdings (quantity + t1)
         for h in holdings_raw:
             symbol = h["tradingsymbol"]
-            symbol = self.normalize_symbol(symbol)
             total_qty = h["quantity"] + h["t1_quantity"]
             if total_qty > 0:
                 holdings[symbol] = {
