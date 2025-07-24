@@ -22,7 +22,7 @@ def run_holdings_display(tsv: bool = False):
 def run_positions_display(tsv: bool = False):
     """Display current positions and their details."""
     broker = ZerodhaBroker()
-    positions = broker.get_current_positions()
+    positions = sorted(broker.get_current_positions(), key=lambda x: x["action"])
 
     display_portfolio_table(
         positions,
