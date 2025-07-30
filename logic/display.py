@@ -100,7 +100,7 @@ def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0, 
     if type == "rebalance":
         portfolio_value_before = hold_amount + sell_amount + cash
         portfolio_value_after = hold_amount + buy_amount
-        remaining_cash = portfolio_value_after - portfolio_value_before
+        remaining_cash = portfolio_value_before - portfolio_value_after
         print(f"📊 Portfolio Value (Before)   : ₹{portfolio_value_before:,.2f}")
         print(f"📈 Portfolio Value (After)    : ₹{portfolio_value_after:,.2f}")
 

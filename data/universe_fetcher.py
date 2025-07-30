@@ -1,6 +1,6 @@
 import os
 from io import StringIO
-
+from datetime import datetime
 import pandas as pd
 import requests
 
@@ -50,7 +50,8 @@ def get_universe_symbols(
         raise ValueError("Universe format should be like 'nifty100', 'nifty500' etc.")
 
     url = f"https://archives.nseindia.com/content/indices/ind_nifty{size}list.csv"
-    cache_file = os.path.join(cache_dir, f"{universe}.csv")
+    today = datetime.today().strftime("%Y-%m-%d")
+    cache_file = os.path.join(cache_dir, f"{universe}-{today}.csv")
 
     # Try to load from cache
     if is_caching_enabled():
