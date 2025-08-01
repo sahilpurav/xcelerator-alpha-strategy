@@ -22,6 +22,10 @@ def apply_universe_filters(symbols: list[str]) -> list[str]:
     esm = get_excluded_esm_symbols()
     excluded = set().union(asm, gsm, esm)
 
+    # Manual exclusion of symbols
+    manual_exclusions = ["GVT&D"]
+    excluded.add(*manual_exclusions)
+
     filtered_symbols = [s for s in symbols if s not in excluded]
 
     # Print simple exclusion summary

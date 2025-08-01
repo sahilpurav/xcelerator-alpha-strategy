@@ -1,4 +1,3 @@
-import time
 from datetime import timedelta
 
 import pandas as pd
@@ -25,7 +24,7 @@ def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
     """
     Fetches stock prices for the given symbols from the start of the year to the as_of_date.
     """
-    start = (as_of_date - timedelta(days=400)).strftime("%Y-%m-%d")
+    start = (as_of_date - timedelta(days=399)).strftime("%Y-%m-%d")
     end = as_of_date.strftime("%Y-%m-%d")
     return download_and_cache_prices(symbols, start=start, end=end)
 
@@ -137,7 +136,7 @@ def run_rebalance(
     universe_symbols = [f"{s}.NS" for s in universe_symbols_list]
 
     price_symbols = list(set(universe_symbols + [cash_equivalent, benchmark_symbol]))
-    price_data = _get_latest_prices(price_symbols, exec_date)
+    price_data = _get_latest_prices(price_symbols, ranking_date)
 
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()

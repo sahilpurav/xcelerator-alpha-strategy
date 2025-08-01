@@ -83,30 +83,6 @@ def get_ranking_date(symbol: str, day_of_week: str = None) -> str:
     return get_last_trading_date(symbol)
 
 
-def is_market_open_now() -> bool:
-    """
-    Returns True if current time is during Indian market hours (9:15 AM to 3:30 PM IST)
-    AND today is the actual trading day based on NSE calendar (using get_last_trading_date).
-
-    This avoids false positives on NSE holidays that fall on weekdays.
-    """
-    now = datetime.now().astimezone()
-
-    # Fast exit on weekends
-    if now.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
-        return False
-
-    # Fast exit outside market hours
-    if not (time(9, 15) <= now.time() < time(15, 30)):
-        return False
-
-    # Now check if today is an actual NSE trading day
-    india_today_str = now.strftime("%Y-%m-%d")
-    last_trading_day_str = get_last_trading_date("^CRSLDX")  # Using nifty500 as default for market open check
-
-    return india_today_str == last_trading_day_str
-
-
 def is_market_strong(
     price_data: dict[str, pd.DataFrame],
     benchmark_symbol: str,
