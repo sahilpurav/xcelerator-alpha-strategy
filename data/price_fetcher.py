@@ -4,13 +4,14 @@ from time import sleep
 from typing import Optional
 
 import pandas as pd
+import typer
 
 from broker.zerodha import ZerodhaBroker
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
 from utils.market import get_market_status
+from utils.rate_limiter import RateLimiter
 
-
-def fetch_price_from_kite(kite, instrument_token: int, from_date: str, to_date: str) -> pd.DataFrame:
+def fetch_price_from_kite(kite, instrument_token: int, from_date: str, to_date: str, rate_limiter: RateLimiter) -> pd.DataFrame:
     """
     Fetches historical price data from Kite API for a given instrument token.
     Returns a DataFrame with OHLCV data.
@@ -21,6 +22,7 @@ def fetch_price_from_kite(kite, instrument_token: int, from_date: str, to_date: 
         to_dt = datetime.strptime(to_date, "%Y-%m-%d")
         
         # Fetch historical data from Kite
+        rate_limiter.acquire()
         historical_data = kite.historical_data(
             instrument_token=instrument_token,
             from_date=from_dt,
@@ -121,7 +123,7 @@ def save_prices_to_cache(df: pd.DataFrame, symbol: str, cache_dir: str = "cache/
         records = df_to_save.to_dict("records")
         
         save_to_file(records, cache_path)
-        print(f"✅ Cached {len(df)} records for {symbol}")
+        # Removed print statement to avoid interfering with progress bar
         
     except Exception as e:
         print(f"⚠️ Failed to cache {symbol}: {e}")
@@ -170,103 +172,91 @@ def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dic
     print(f"📊 Fetching prices for {len(symbols)} symbols from {start} to {end}")
     
     result = {}
+    rate_limiter = RateLimiter(10, 1)
     
-    for symbol in symbols:
-        print(f"🔍 Processing {symbol}...")
-        
-        # Check if symbol exists in instrument token map
-        if symbol not in instrument_token_map:
-            print(f"⚠️ Symbol {symbol} not found in instrument token map, skipping")
-            continue
-        
-        instrument_token = instrument_token_map[symbol]
-        
-        # Try to load from cache first
-        cached_df = load_cached_prices(symbol)
-        
-        if cached_df is not None and not cached_df.empty:
-            # Check if we have enough data
-            cached_start = cached_df.index.min()
-            cached_end = cached_df.index.max()
-            required_start = pd.to_datetime(start)
-            required_end = pd.to_datetime(end)
+    with typer.progressbar(symbols, label="Processing symbols") as progress:
+        for symbol in progress:
+            # Update progress description to show current symbol and count
+            current_index = symbols.index(symbol) + 1
+            progress.label = f"Processing {symbol} ({current_index}/{len(symbols)})"
             
-            # If cache covers the required range, use it
-            if cached_start <= required_start and cached_end >= required_end:
-                print(f"✅ Using cached data for {symbol}")
-                result[symbol] = cached_df[required_start:required_end]
+            # Check if symbol exists in instrument token map
+            if symbol not in instrument_token_map:
                 continue
             
-            # If cache is missing some data, fetch only the missing part
-            fetch_start = start
-            fetch_end = end
+            instrument_token = instrument_token_map[symbol]
             
-            # Handle new listings: if symbol was listed after strategy start date
-            if cached_start > required_start:
-                print(f"📅 {symbol} was listed on {cached_start.strftime('%Y-%m-%d')} (after strategy start {required_start.strftime('%Y-%m-%d')})")
-                # For new listings, we can only provide data from listing date onwards
-                if cached_end >= required_end:
-                    # We have enough data from listing date to end date
-                    print(f"✅ Using cached data for {symbol} from listing date")
+            # Try to load from cache first
+            cached_df = load_cached_prices(symbol)
+            
+            if cached_df is not None and not cached_df.empty:
+                # Check if we have enough data
+                cached_start = cached_df.index.min()
+                cached_end = cached_df.index.max()
+                required_start = pd.to_datetime(start)
+                required_end = pd.to_datetime(end)
+                
+                # If cache covers the required range, use it
+                if cached_start <= required_start and cached_end >= required_end:
                     result[symbol] = cached_df[required_start:required_end]
                     continue
-                else:
-                    # Need to fetch incremental data from listing date onwards
+                
+                # If cache is missing some data, fetch only the missing part
+                fetch_start = start
+                fetch_end = end
+                
+                # Handle new listings: if symbol was listed after strategy start date
+                if cached_start > required_start:
+                    # For new listings, we can only provide data from listing date onwards
+                    if cached_end >= required_end:
+                        # We have enough data from listing date to end date
+                        result[symbol] = cached_df[required_start:required_end]
+                        continue
+                    else:
+                        # Need to fetch incremental data from listing date onwards
+                        fetch_start = (cached_end + timedelta(days=1)).strftime("%Y-%m-%d")
+                elif cached_end >= required_start:
+                    # We have some overlapping data, fetch from last cached date + 1
                     fetch_start = (cached_end + timedelta(days=1)).strftime("%Y-%m-%d")
-                    print(f"📈 Fetching incremental data for {symbol} from {fetch_start}")
-            elif cached_end >= required_start:
-                # We have some overlapping data, fetch from last cached date + 1
-                fetch_start = (cached_end + timedelta(days=1)).strftime("%Y-%m-%d")
-                print(f"📈 Fetching incremental data for {symbol} from {fetch_start}")
-            else:
-                # Cache is too old, fetch from required start
-                print(f"📉 Cache too old for {symbol}, fetching from {fetch_start}")
-            
-            # Validate that fetch_start is not after fetch_end
-            if pd.to_datetime(fetch_start) > pd.to_datetime(fetch_end):
-                print(f"⚠️ Skip fetching incremental data for {symbol}: fetch_start ({fetch_start}) is after fetch_end ({fetch_end})")
-                # Use cached data if it covers required range
-                if cached_start <= required_start and cached_end >= required_end:
-                    result[symbol] = cached_df[required_start:required_end]
                 else:
-                    print(f"⚠️ Failed to fetch data for {symbol}")
-                continue
-            
-            # Fetch missing data
-            sleep(0.5)
-            new_df = fetch_price_from_kite(kite, instrument_token, fetch_start, fetch_end)
-            
-            if not new_df.empty:
-                # Combine cached and new data
-                combined_df = pd.concat([cached_df, new_df])
-                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove duplicates
-                combined_df = combined_df.sort_index()
+                    # Cache is too old, fetch from required start
+                    pass
                 
-                # Save updated cache
-                save_prices_to_cache(combined_df, symbol)
+                # Validate that fetch_start is not after fetch_end
+                if pd.to_datetime(fetch_start) > pd.to_datetime(fetch_end):
+                    # Use cached data if it covers required range
+                    if cached_start <= required_start and cached_end >= required_end:
+                        result[symbol] = cached_df[required_start:required_end]
+                    continue
                 
-                # Return data for requested range
-                result[symbol] = combined_df[required_start:required_end]
-            else:
-                # If new fetch failed, use cached data if it covers required range
-                if cached_start <= required_start and cached_end >= required_end:
-                    result[symbol] = cached_df[required_start:required_end]
+                # Fetch missing data
+                new_df = fetch_price_from_kite(kite, instrument_token, fetch_start, fetch_end, rate_limiter)
+                
+                if not new_df.empty:
+                    # Combine cached and new data
+                    combined_df = pd.concat([cached_df, new_df])
+                    combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove duplicates
+                    combined_df = combined_df.sort_index()
+                    
+                    # Save updated cache
+                    save_prices_to_cache(combined_df, symbol)
+                    
+                    # Return data for requested range
+                    result[symbol] = combined_df[required_start:required_end]
                 else:
-                    print(f"⚠️ Failed to fetch data for {symbol}")
-        else:
-            sleep(0.5)
-            # No cache exists, fetch all data
-            print(f"📥 Fetching fresh data for {symbol}")
-            df = fetch_price_from_kite(kite, instrument_token, start, end)
-            
-            if not df.empty:
-                # Save to cache
-                save_prices_to_cache(df, symbol)
-                
-                # Return data for requested range
-                result[symbol] = df
+                    # If new fetch failed, use cached data if it covers required range
+                    if cached_start <= required_start and cached_end >= required_end:
+                        result[symbol] = cached_df[required_start:required_end]
             else:
-                print(f"⚠️ Failed to fetch data for {symbol}")
+                # No cache exists, fetch all data
+                df = fetch_price_from_kite(kite, instrument_token, start, end, rate_limiter)
+                
+                if not df.empty:
+                    # Save to cache
+                    save_prices_to_cache(df, symbol)
+                    
+                    # Return data for requested range
+                    result[symbol] = df
     
     print(f"✅ Successfully fetched data for {len(result)} symbols")
     return result
