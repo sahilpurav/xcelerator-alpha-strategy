@@ -5,6 +5,7 @@ import pandas as pd
 import yfinance as yf
 
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
+from utils.market import get_last_trading_date
 
 
 def is_cache_stale_or_missing(
@@ -72,6 +73,16 @@ def is_cache_stale_or_missing(
                     f"   └── Missing {(earliest_cached - required_start).days} days of history"
                 )
                 return True
+            
+        # Check if we have latest data
+        last_cached_date = pd.to_datetime(df.index.max()).normalize()
+        last_trading_day = pd.to_datetime(get_last_trading_date(check_symbol)).normalize()
+
+        if last_cached_date < last_trading_day:
+            print(
+                f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}"
+            )
+            return True
 
     except Exception as e:
         print(f"⚠️ Error reading cache for {check_symbol}: {e}")
