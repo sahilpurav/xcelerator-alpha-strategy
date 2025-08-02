@@ -70,11 +70,9 @@ class BacktestBroker:
             symbol = holding["symbol"]
             quantity = holding["quantity"]
 
-            # Get price for equity symbols (add .NS suffix if needed)
-            symbol_key = f"{symbol}.NS" if symbol not in price_data else symbol
-
-            if symbol_key in price_data and date in price_data[symbol_key].index:
-                price = price_data[symbol_key].loc[date, "Close"]
+            # Get price for equity symbols
+            if symbol in price_data and date in price_data[symbol].index:
+                price = price_data[symbol].loc[date, "Close"]
                 holdings_value += quantity * price
             else:
                 # If price not available, use last known buy price (conservative approach)
@@ -94,7 +92,7 @@ class BacktestBroker:
         Simulate placing a market order.
 
         Args:
-            symbol: Stock symbol (without .NS suffix)
+            symbol: Stock symbol
             quantity: Number of shares
             transaction_type: "BUY" or "SELL"
             price: Execution price

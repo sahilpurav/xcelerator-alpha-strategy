@@ -1,6 +1,0 @@
-{
-  "include": ["."],
-  "exclude": [".venv", "cache", "output", "__pycache__"],
-  "reportMissingTypeStubs": false,
-  "pythonVersion": "3.10"
-} 

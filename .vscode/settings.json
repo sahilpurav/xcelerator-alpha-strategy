@@ -1,19 +1,12 @@
 {
-  "cSpell.words": [
-    "backtest",
-    "dotenv",
-    "kiteconnect",
-    "LIQUIDBEES",
-    "LIQUIDCASE",
-    "longterm",
-    "lookback",
-    "NSEI",
-    "rsis",
-    "shortterm",
-    "topup",
-    "TOTP",
-    "tradingsymbol",
-    "twofa",
-    "Xcelerator"
-  ]
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "off",
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.autoSearchPaths": false,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingTypeStubs": "none",
+    "reportMissingImports": "none",
+    "reportUnusedImport": "none",
+    "reportUnusedVariable": "none"
+  }
 }

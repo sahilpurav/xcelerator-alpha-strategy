@@ -3,7 +3,7 @@ from datetime import timedelta
 import pandas as pd
 
 from broker.zerodha import ZerodhaBroker
-from data.price_fetcher import download_and_cache_prices
+from data.price_fetcher import get_prices
 from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
 from logic.display import display_execution_plan
 from logic.filters import apply_universe_filters
@@ -26,7 +26,7 @@ def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
     """
     start = (as_of_date - timedelta(days=399)).strftime("%Y-%m-%d")
     end = as_of_date.strftime("%Y-%m-%d")
-    return download_and_cache_prices(symbols, start=start, end=end)
+    return get_prices(symbols, start=start, end=end)
 
 
 def _execute_orders(
@@ -77,12 +77,11 @@ def _override_ranked_stocks_with_broker_prices(symbols, price_data, broker):
             if symbol not in live_prices:
                 continue
 
-            symbol_with_ns = f"{symbol}.NS"
-            if symbol_with_ns not in price_data:
+            if symbol not in price_data:
                 continue
 
-            latest_date = price_data[symbol_with_ns].index.max()
-            price_data[symbol_with_ns].loc[latest_date, "Close"] = live_prices[symbol]
+            latest_date = price_data[symbol].index.max()
+            price_data[symbol].loc[latest_date, "Close"] = live_prices[symbol]
 
     except Exception as e:
         print(f"❌ Failed to fetch live prices: {e}")
@@ -93,7 +92,7 @@ def _override_ranked_stocks_with_broker_prices(symbols, price_data, broker):
 def run_rebalance(
     top_n: int = 15,
     band: int = 5,
-    cash_equivalent: str = "LIQUIDCASE.NS",
+    cash_equivalent: str = "LIQUIDCASE",
     rank_day: str | None = None,
     dry_run: bool = False,
     universe: str = "nifty500",
@@ -123,8 +122,8 @@ def run_rebalance(
     """
 
     benchmark_symbol = get_benchmark_symbol(universe)
-    exec_date = pd.to_datetime(get_last_trading_date(benchmark_symbol))
-    ranking_date = pd.to_datetime(get_ranking_date(benchmark_symbol, rank_day))
+    exec_date = pd.to_datetime(get_last_trading_date())
+    ranking_date = pd.to_datetime(get_ranking_date(rank_day))
 
     print(f"\n🔄 Running weekly rebalance strategy as of {exec_date.date()}...")
     if ranking_date != exec_date:
@@ -133,7 +132,7 @@ def run_rebalance(
         )
 
     universe_symbols_list = _get_filtered_universe(universe)
-    universe_symbols = [f"{s}.NS" for s in universe_symbols_list]
+    universe_symbols = universe_symbols_list
 
     price_symbols = list(set(universe_symbols + [cash_equivalent, benchmark_symbol]))
     price_data = _get_latest_prices(price_symbols, ranking_date)
@@ -171,7 +170,7 @@ def run_rebalance(
         symbol = stock["symbol"]
         action = stock["action"]
         rank = stock["rank"]  # Rank is now embedded in the recommendation
-        symbol_with_ns = f"{symbol}.NS"
+        symbol_with_ns = symbol
 
         # Skip if no price data available
         if symbol_with_ns not in price_data:

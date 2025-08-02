@@ -1,60 +1,80 @@
-from datetime import datetime, time
 from functools import lru_cache
+import requests
 
 import pandas as pd
-import yfinance as yf
+from datetime import datetime, timedelta
 
 from logic.indicators import calculate_dma, calculate_ema
 
 
 @lru_cache(maxsize=1)
-def get_market_data(symbol: str, period: str = "14d") -> pd.DataFrame:
+def get_market_status() -> dict:
     """
-    Downloads and caches market data for the specified symbol and period.
-
-    Args:
-        symbol: Yahoo Finance symbol (e.g., "^CRSLDX", "^CNX100")
-        period: Lookback period for data (default: 14d)
-
-    Returns:
-        DataFrame with OHLCV data
+    Fetches market status from NSE API to check if market is open and get trade date.
+    Returns a dict with 'marketStatus' and 'tradeDate' keys.
     """
-    df = yf.download(
-        symbol, period=period, interval="1d", progress=False, auto_adjust=False
-    )
-    if df.empty:
-        raise Exception(f"Failed to get market data for {symbol} from Yahoo Finance.")
-    return df
+    try:
+        url = "https://www.nseindia.com/api/marketStatus"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Handle different response formats
+        if isinstance(data.get("marketState"), dict):
+            capital_market = data.get("marketState", {}).get("Capital Market", {})
+        elif isinstance(data.get("marketState"), list):
+            # If marketState is a list, find the Capital Market entry
+            capital_market = {}
+            for market in data.get("marketState", []):
+                if isinstance(market, dict) and market.get("market") == "Capital Market":
+                    capital_market = market
+                    break
+        else:
+            capital_market = {}
+        
+        return {
+            "marketStatus": capital_market.get("marketStatus", "CLOSED"),
+            "tradeDate": capital_market.get("tradeDate", "")
+        }
+    except Exception as e:
+        print(f"⚠️ Failed to fetch market status: {e}")
+        # Default to closed if API fails
+        return {"marketStatus": "Closed", "tradeDate": ""}
 
 
-def get_last_trading_date(symbol: str) -> str:
+def get_last_trading_date() -> str:
     """
     Returns the last trading day as a string in YYYY-MM-DD format
-    using available data from Yahoo Finance for the given index symbol.
-
-    Results are cached in-memory for the duration of the script via get_market_data.
+    using available data from NSE's market status API.
     """
-    df = get_market_data(symbol)
-    last_date = df.index[-1]
-    return pd.to_datetime(last_date).strftime("%Y-%m-%d")
+    market_status = get_market_status()
+    trade_date = market_status["tradeDate"]
+
+    # The value for tradeDate is in "01-Aug-2025 15:30" format
+    # Convert the trade date to YYYY-MM-DD pandas format
+    return pd.to_datetime(trade_date).strftime("%Y-%m-%d")
 
 
-def get_ranking_date(symbol: str, day_of_week: str = None) -> str:
+def get_ranking_date(day_of_week: str = None) -> str:
     """
     Returns the most recent specified weekday (e.g., Wednesday) that was a trading day.
+    Uses Zerodha API to fetch Nifty 50 index data for the last 14 days.
     If no trading day is found for the specified weekday in the last 14 days,
     returns the most recent trading day before that.
 
     Args:
         day_of_week: Day name (Monday, Tuesday, etc.) or None for today
-        symbol: Symbol to check for trading data
 
     Returns:
         Date string in YYYY-MM-DD format
     """
     if day_of_week is None:
         # If no specific day is requested, return the last trading date
-        return get_last_trading_date(symbol)
+        return get_last_trading_date()
 
     # Validate day_of_week
     valid_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -63,24 +83,64 @@ def get_ranking_date(symbol: str, day_of_week: str = None) -> str:
             f"Invalid day_of_week: {day_of_week}. Must be one of {valid_days}"
         )
 
-    # Get mapping of day name to day number (0=Monday, 4=Friday)
-    day_to_num = {d: i for i, d in enumerate(valid_days)}
-    target_day_num = day_to_num[day_of_week]
-
-    # Get recent market data
-    df = get_market_data(symbol, period="14d")
-
-    # Convert DataFrame index to date objects and reverse to find most recent first
-    dates = [d for d in df.index]
-    dates.sort(reverse=True)
-
-    # Find the most recent occurrence of the target day that has data
-    for date in dates:
-        if date.weekday() == target_day_num:
-            return date.strftime("%Y-%m-%d")
-
-    # If no matching day found, return the most recent trading date
-    return get_last_trading_date(symbol)
+    try:
+        # Import here to avoid circular imports
+        from broker.zerodha import ZerodhaBroker
+        
+        # Initialize Zerodha broker
+        broker = ZerodhaBroker()
+        kite = broker.kite
+        instrument_token_map = broker.get_instrument_token_map()
+        
+        # Use Nifty 50 index symbol for trading day detection
+        nifty50_symbol = "NIFTY 50"
+        
+        if nifty50_symbol not in instrument_token_map:
+            print(f"⚠️ {nifty50_symbol} not found in instrument token map, using last trading date")
+            return get_last_trading_date()
+        
+        instrument_token = instrument_token_map[nifty50_symbol]
+        
+        # Calculate date range for last 14 days
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=20)  # Extra buffer to ensure we get 14 trading days
+        
+        # Fetch historical data from Kite
+        historical_data = kite.historical_data(
+            instrument_token=instrument_token,
+            from_date=start_date,
+            to_date=end_date,
+            interval="day"
+        )
+        
+        if not historical_data:
+            print("⚠️ No historical data received from Zerodha, using last trading date")
+            return get_last_trading_date()
+        
+        # Convert to DataFrame and extract dates
+        df = pd.DataFrame(historical_data)
+        df["date"] = pd.to_datetime(df["date"])
+        
+        # Get unique trading dates and sort them
+        trading_dates = df["date"].dt.date.unique()
+        trading_dates = sorted(trading_dates, reverse=True)  # Most recent first
+        
+        # Get mapping of day name to day number (0=Monday, 4=Friday)
+        day_to_num = {d: i for i, d in enumerate(valid_days)}
+        target_day_num = day_to_num[day_of_week]
+        
+        # Find the most recent occurrence of the target day that has data
+        for date in trading_dates:
+            if pd.to_datetime(date).weekday() == target_day_num:
+                return date.strftime("%Y-%m-%d")
+        
+        # If no matching day found, return the most recent trading date
+        return trading_dates[0].strftime("%Y-%m-%d")
+        
+    except Exception as e:
+        print(f"⚠️ Error fetching ranking date from Zerodha: {e}")
+        # Fallback to last trading date
+        return get_last_trading_date()
 
 
 def is_market_strong(
@@ -98,7 +158,7 @@ def is_market_strong(
 
     Args:
         price_data (dict): Dictionary of symbol -> OHLCV DataFrame (must include benchmark symbol)
-        benchmark_symbol (str): Symbol for benchmark index (e.g., "^CRSLDX", "^CNX100")
+        benchmark_symbol (str): Symbol for benchmark index (e.g., "NIFTY 500", "NIFTY 100")
         as_of_date (pd.Timestamp, optional): Date to calculate metrics for
         breadth_threshold (float): Minimum breadth ratio required (default: 0.4 = 40%)
 

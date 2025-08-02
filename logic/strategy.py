@@ -12,7 +12,7 @@ def run_strategy(
     top_n: int = 15,
     band: int = 5,
     weights: tuple[float, float, float] = (0.8, 0.1, 0.1),
-    cash_equivalent: str = "LIQUIDCASE.NS",
+    cash_equivalent: str = "LIQUIDCASE",
     jump_threshold: float = 0.15,
 ) -> list[dict[str, str | int | None]]:
     """
@@ -22,7 +22,7 @@ def run_strategy(
         price_data: Dictionary of symbol -> DataFrame with OHLCV data
         as_of_date: Date for strategy execution
         held_symbols: Currently held stock symbols
-        benchmark_symbol: Symbol for benchmark index (e.g., "^CRSLDX", "^CNX100")
+        benchmark_symbol: Symbol for benchmark index (e.g., "NIFTY 500", "NIFTY 100")
         top_n: Target number of stocks in portfolio
         band: Band size for determining when to sell held stocks
         weights: Tuple of (return_weight, rsi_weight, proximity_weight) for ranking
@@ -37,7 +37,7 @@ def run_strategy(
     market_is_strong = is_market_strong(price_data, benchmark_symbol=benchmark_symbol, as_of_date=as_of_date)
 
     # Normalize cash symbol once
-    cash_symbol_clean = cash_equivalent.replace(".NS", "")
+    cash_symbol_clean = cash_equivalent
 
     # If market is weak, liquidate all positions and invest in cash equivalent
     if not market_is_strong:
@@ -64,9 +64,8 @@ def run_strategy(
 
     # Single-pass data preparation (eliminating redundant operations)
     ranked_df_clean = ranked_df.copy()
-    ranked_df_clean["symbol"] = ranked_df_clean["symbol"].str.replace(
-        ".NS", "", regex=False
-    )
+    # No need to replace .NS suffix anymore
+    ranked_df_clean = ranked_df_clean.copy()
     ranked_df_clean = ranked_df_clean.reset_index(drop=True)
     ranked_df_clean["rank"] = ranked_df_clean.index + 1
 
@@ -99,8 +98,7 @@ def run_strategy(
     # Step 5: Filter high-jump stocks with optimized date handling
     new_entries = []
     for symbol in raw_new_entries:
-        symbol_ns = symbol if ".NS" in symbol else f"{symbol}.NS"
-        df = price_data.get(symbol_ns)
+        df = price_data.get(symbol)
 
         # Quick validation checks
         if df is None or as_of_date not in df.index:

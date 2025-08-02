@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from broker.backtest import BacktestBroker
-from data.price_fetcher import download_and_cache_prices
+from data.price_fetcher import get_prices
 from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
 from logic.planner import plan_allocation
 from logic.strategy import run_strategy
@@ -26,7 +26,7 @@ class BacktestEngine:
         rebalance_frequency: str = "W",
         rebalance_day: str = "Wednesday",
         transaction_cost_pct: float = 0.001192,
-        cash_equivalent: str = "LIQUIDCASE.NS",
+        cash_equivalent: str = "LIQUIDCASE",
     ):
         """
         Initialize the backtest engine.
@@ -87,8 +87,8 @@ class BacktestEngine:
         # Get benchmark symbol for this universe
         benchmark_symbol = get_benchmark_symbol(universe)
 
-        # Add .NS suffix for price fetching
-        symbols = [f"{s}.NS" for s in universe_symbols] + [benchmark_symbol]
+        # No need to add .NS suffix for price fetching
+        symbols = universe_symbols + [benchmark_symbol]
 
         # Fetch historical data
         start_str = (start_date - timedelta(days=400)).strftime(
@@ -96,7 +96,7 @@ class BacktestEngine:
         )  # Extra buffer for indicators
         end_str = end_date.strftime("%Y-%m-%d")
 
-        price_data = download_and_cache_prices(symbols, start=start_str, end=end_str)
+        price_data = get_prices(symbols, start=start_str, end=end_str)
 
         return universe_symbols, price_data
 
@@ -153,7 +153,7 @@ class BacktestEngine:
         )
 
         # Check if strategy recommends cash equivalent (weak market)
-        cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+        cash_symbol_clean = self.cash_equivalent
         is_weak_market = any(
             rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"]
             for rec in recommendations
@@ -179,12 +179,11 @@ class BacktestEngine:
         new_stocks = []
         for rec in recommendations:
             if rec["action"] == "BUY":
-                symbol_with_ns = f"{rec['symbol']}.NS"
                 if (
-                    symbol_with_ns in price_data
-                    and date in price_data[symbol_with_ns].index
+                    rec['symbol'] in price_data
+                    and date in price_data[rec['symbol']].index
                 ):
-                    price = price_data[symbol_with_ns].loc[date, "Close"]
+                    price = price_data[rec['symbol']].loc[date, "Close"]
                     new_stocks.append(
                         {
                             "symbol": rec["symbol"],
@@ -237,7 +236,7 @@ class BacktestEngine:
         )
 
         # Detect market regime from recommendations
-        cash_symbol_clean = self.cash_equivalent.replace(".NS", "")
+        cash_symbol_clean = self.cash_equivalent
         is_weak_market = any(
             rec["symbol"] == cash_symbol_clean and rec["action"] in ["BUY", "HOLD"]
             for rec in recommendations
@@ -260,12 +259,11 @@ class BacktestEngine:
             removed_stocks = []
             for holding in equity_holdings:
                 symbol = holding["symbol"]
-                symbol_with_ns = f"{symbol}.NS"
                 if (
-                    symbol_with_ns in price_data
-                    and date in price_data[symbol_with_ns].index
+                    symbol in price_data
+                    and date in price_data[symbol].index
                 ):
-                    price = price_data[symbol_with_ns].loc[date, "Close"]
+                    price = price_data[symbol].loc[date, "Close"]
                     removed_stocks.append(
                         {
                             "symbol": symbol,
@@ -321,13 +319,12 @@ class BacktestEngine:
                 continue
 
             # Get price data for regular equities
-            symbol_with_ns = f"{symbol}.NS"
             if (
-                symbol_with_ns not in price_data
-                or date not in price_data[symbol_with_ns].index
+                symbol not in price_data
+                or date not in price_data[symbol].index
             ):
                 continue
-            price = price_data[symbol_with_ns].loc[date, "Close"]
+            price = price_data[symbol].loc[date, "Close"]
 
             # Get existing quantity from holdings
             existing_holding = next(
@@ -689,7 +686,7 @@ def run_backtest(
     rebalance_day: str = "Wednesday",
     band: int = 5,
     top_n: int = 15,
-    cash_equivalent: str = "LIQUIDCASE.NS",
+    cash_equivalent: str = "LIQUIDCASE",
     universe: str = "nifty500",
     rebalance_frequency: str = "W",
 ):
@@ -706,7 +703,7 @@ def run_backtest(
     """
     start_date = pd.to_datetime(start)
     benchmark_symbol = get_benchmark_symbol(universe)
-    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date(benchmark_symbol))
+    end_date = pd.to_datetime(end) if end else pd.to_datetime(get_last_trading_date())
 
     # Initialize and run backtest
     engine = BacktestEngine(

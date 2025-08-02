@@ -19,7 +19,7 @@ def _fetch_red_flags(measure: str, cache_dir: str = "cache/filters") -> list[dic
     if measure not in ["asm", "gsm", "esm"]:
         raise ValueError("Invalid measure type. Use 'asm', 'gsm' or 'esm'.")
 
-    last_trading_date = get_last_trading_date("^CRSLDX")  # Using nifty500 for surveillance data fetch
+    last_trading_date = get_last_trading_date()  # Using nifty500 for surveillance data fetch
     output_file = f"{cache_dir}/{measure}-{last_trading_date}.json"
 
     cached_data = load_from_file(output_file)

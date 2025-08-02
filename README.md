@@ -118,13 +118,13 @@ python cli.py rebalance
 python cli.py rebalance --dry-run
 
 # Custom parameters with Nifty 100 universe
-python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE.NS" --rank-day "Wednesday" --universe nifty100 --dry-run
+python cli.py rebalance --top-n 20 --band 7 --cash "LIQUIDCASE" --rank-day "Wednesday" --universe nifty100 --dry-run
 ```
 
 **Parameters:**
 - `--top-n`: Number of stocks to select (default: 15)
 - `--band`: Band size for portfolio stability (default: 5)
-- `--cash`: Cash equivalent symbol (default: "LIQUIDCASE.NS")
+- `--cash`: Cash equivalent symbol (default: "LIQUIDCASE")
 - `--rank-day`: Day of week for ranking (e.g., Monday, Tuesday). Defaults to the latest trading day.
 - `--dry-run`: Simulate without placing orders (default: False)
 - `--universe`: Universe to use - "nifty500" or "nifty100" (default: nifty500)
@@ -202,7 +202,7 @@ python cli.py backtest --start 2020-01-01 --end 2023-12-31 \
 - `--rebalance-day`: Day of week for rebalancing (default: Wednesday)
 - `--band`: Band size for portfolio stability (default: 5)
 - `--top-n`: Number of stocks to select (default: 15)
-- `--cash`: Cash equivalent symbol (default: "LIQUIDCASE.NS")
+- `--cash`: Cash equivalent symbol (default: "LIQUIDCASE")
 - `--universe`: Universe to use - "nifty500" or "nifty100" (default: nifty500)
 
 #### Cache Management
@@ -222,13 +222,13 @@ The strategy supports two stock universes:
 
 #### Nifty 500 (Default)
 - **Symbol Pool**: Top 500 companies by market cap
-- **Benchmark**: ^CRSLDX (Nifty 500 TRI)
+- **Benchmark**: NIFTY 500
 - **Use Case**: Broader diversification, includes mid-cap exposure
 - **Command**: `--universe nifty500` (or omit for default)
 
 #### Nifty 100
 - **Symbol Pool**: Top 100 companies by market cap  
-- **Benchmark**: ^CNX100 (Nifty 100)
+- **Benchmark**: NIFTY 100
 - **Use Case**: Large-cap focused, lower volatility
 - **Command**: `--universe nifty100`
 

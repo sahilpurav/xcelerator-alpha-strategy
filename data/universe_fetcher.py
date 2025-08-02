@@ -18,8 +18,8 @@ def get_benchmark_symbol(universe: str = "nifty500") -> str:
         str: Yahoo Finance benchmark symbol
     """
     universe_to_symbol = {
-        "nifty500": "^CRSLDX",
-        "nifty100": "^CNX100",
+        "nifty500": "NIFTY 500",
+        "nifty100": "NIFTY 100",
     }
 
     if universe not in universe_to_symbol:

@@ -14,7 +14,7 @@ app = typer.Typer(
 def rebalance(
     top_n: int = typer.Option(15, help="Number of stocks to select"),
     band: int = typer.Option(5, help="Band size for portfolio stability"),
-    cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
+    cash: str = typer.Option("LIQUIDCASE", help="Cash equivalent symbol"),
     rank_day: str | None = typer.Option(
         None,
         help="Day of week for ranking (Monday, Tuesday, etc.). Default: use latest trading day",
@@ -72,7 +72,7 @@ def backtest(
         5, help="Band size for portfolio stability (higher = less churn)"
     ),
     top_n: int = typer.Option(15, help="Number of stocks to select"),
-    cash: str = typer.Option("LIQUIDCASE.NS", help="Cash equivalent symbol"),
+    cash: str = typer.Option("LIQUIDCASE", help="Cash equivalent symbol"),
     universe: str = typer.Option("nifty500", help="Universe to use (nifty500, nifty100)"),
     rebalance_frequency: str = typer.Option(
         "W", help="Rebalance frequency (D for daily, W for weekly, M for monthly)"

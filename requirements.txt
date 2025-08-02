@@ -2,7 +2,6 @@ typer
 pandas
 pandas-stubs
 numpy
-yfinance
 python-dotenv
 pip-review
 kiteconnect
@@ -10,4 +9,3 @@ onetimepass
 twilio
 black
 isort
-basedpyright

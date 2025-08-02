@@ -96,6 +96,19 @@ class ZerodhaBroker:
 
         return rows
 
+    def get_instrument_token_map(self) -> dict[str, int]:
+        """
+        Fetches the instrument token map from Zerodha and returns
+        a dict with symbol as key and instrument token as value.
+        """
+        if hasattr(self, "_instrument_token_map"):
+            return self._instrument_token_map
+
+        instruments = self.kite.instruments("NSE")
+        token_map = {i["tradingsymbol"]: i["instrument_token"] for i in instruments}
+        self._instrument_token_map = token_map
+        return token_map
+
     def get_holdings(self) -> list[dict]:
         """
         Fetches current holdings from Zerodha and returns

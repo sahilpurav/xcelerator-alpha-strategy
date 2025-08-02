@@ -1,238 +1,272 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from time import sleep
+from typing import Optional
 
 import pandas as pd
-import yfinance as yf
 
+from broker.zerodha import ZerodhaBroker
 from utils.cache import is_caching_enabled, load_from_file, save_to_file
-from utils.market import get_last_trading_date
+from utils.market import get_market_status
 
 
-def is_cache_stale_or_missing(
-    symbols: list[str], start: str | None = None, cache_dir: str = "cache/prices"
-) -> bool:
+def fetch_price_from_kite(kite, instrument_token: int, from_date: str, to_date: str) -> pd.DataFrame:
     """
-    Checks if the cache for the given symbols is stale or missing.
-    Also verifies that the cache contains the required historical range if start date is provided.
-    Returns True if cache is stale or missing, False otherwise.
+    Fetches historical price data from Kite API for a given instrument token.
+    Returns a DataFrame with OHLCV data.
     """
-    # If caching is disabled, always return True to force fresh data
-    if not is_caching_enabled():
-        # Print a debug message to make it clear we're skipping cache
-        print("⚠️ Caching is disabled, using fresh data...")
-        return True
-
-    if not symbols:
-        return True
-
-    # Check which benchmark symbol to use for cache validation
-    # Priority: ^CRSLDX (nifty500), then ^CNX100 (nifty100), then first symbol
-    check_symbol = None
-    if "^CRSLDX" in symbols:
-        check_symbol = "^CRSLDX"
-    elif "^CNX100" in symbols:
-        check_symbol = "^CNX100"
-    else:
-        check_symbol = symbols[0]
-    check_path = os.path.join(cache_dir, f"{check_symbol}.csv")
-
-    # Check if cache exists
-    if not os.path.exists(check_path):
-        print(f"🛑 Cache missing for {check_symbol}")
-        return True
-
     try:
-        # Get data using the utility function
-        cached_data = load_from_file(check_path)
-        if not cached_data or not isinstance(cached_data, list) or not cached_data:
-            print(f"🛑 Invalid or empty cache for {check_symbol}")
-            return True
-
+        # Convert dates to datetime objects for Kite API
+        from_dt = datetime.strptime(from_date, "%Y-%m-%d")
+        to_dt = datetime.strptime(to_date, "%Y-%m-%d")
+        
+        # Fetch historical data from Kite
+        historical_data = kite.historical_data(
+            instrument_token=instrument_token,
+            from_date=from_dt,
+            to_date=to_dt,
+            interval="day"
+        )
+        
+        if not historical_data:
+            return pd.DataFrame()
+        
         # Convert to DataFrame
-        df = pd.DataFrame(cached_data)
-
-        # Check if "Date" column exists
-        if "Date" not in df.columns:
-            print(f"🛑 Invalid cache format for {check_symbol}: missing 'Date' column")
-            return True
-
-        # Set Date as index after verifying it exists
+        df = pd.DataFrame(historical_data)
+        
+        # Rename columns to match expected format
+        column_mapping = {
+            "date": "Date",
+            "open": "Open",
+            "high": "High", 
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume"
+        }
+        
+        df = df.rename(columns=column_mapping)
+        
+        # Ensure Date is datetime and set as index
         df["Date"] = pd.to_datetime(df["Date"])
+        # Convert timezone-aware dates to timezone-naive by localizing to UTC then converting to naive
+        if df["Date"].dt.tz is not None:
+            df["Date"] = df["Date"].dt.tz_localize(None)
         df = df.set_index("Date")
-
-        # Check if we have enough historical data
-        if start:
-            required_start = pd.to_datetime(start)  # Use start date as is
-            earliest_cached = pd.to_datetime(df.index.min()).normalize()
-
-            if earliest_cached > required_start:
-                print(f"📉 Cache doesn't have enough history:")
-                print(f"   ├── Earliest cached: {earliest_cached.date()}")
-                print(f"   ├── Required start : {required_start.date()}")
-                print(
-                    f"   └── Missing {(earliest_cached - required_start).days} days of history"
-                )
-                return True
-            
-        # Check if we have latest data
-        last_cached_date = pd.to_datetime(df.index.max()).normalize()
-        last_trading_day = pd.to_datetime(get_last_trading_date(check_symbol)).normalize()
-
-        if last_cached_date < last_trading_day:
-            print(
-                f"📉 Cache is stale: last cached = {last_cached_date.date()}, expected = {last_trading_day.date()}"
-            )
-            return True
-
+        
+        # Ensure numeric columns
+        numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+        return df.sort_index()
+        
     except Exception as e:
-        print(f"⚠️ Error reading cache for {check_symbol}: {e}")
-        return True
+        print(f"❌ Failed to fetch data from Kite for token {instrument_token}: {e}")
+        return pd.DataFrame()
 
-    return False
 
-def download_fresh_prices(symbols: list[str], start: str, end: str, cache_dir: str = "cache/prices") -> dict[str, pd.DataFrame]:
+def load_cached_prices(symbol: str, cache_dir: str = "cache/prices") -> Optional[pd.DataFrame]:
     """
-    Downloads price data for the given symbols and caches them if caching is enabled.
+    Loads cached price data for a symbol.
+    Returns None if cache doesn't exist or is invalid.
+    """
+    cache_path = os.path.join(cache_dir, f"{symbol}.csv")
+    
+    if not os.path.exists(cache_path):
+        return None
+    
+    try:
+        cached_data = load_from_file(cache_path)
+        if not cached_data:
+            return None
+        
+        df = pd.DataFrame(cached_data)
+        if "Date" not in df.columns or df.empty:
+            return None
+        
+        # Convert Date to datetime and set as index
+        df["Date"] = pd.to_datetime(df["Date"])
+        # Convert timezone-aware dates to timezone-naive by localizing to UTC then converting to naive
+        if df["Date"].dt.tz is not None:
+            df["Date"] = df["Date"].dt.tz_localize(None)
+        df = df.set_index("Date")
+        
+        # Ensure numeric columns
+        numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+        return df.sort_index()
+        
+    except Exception as e:
+        print(f"⚠️ Error loading cache for {symbol}: {e}")
+        return None
+
+
+def save_prices_to_cache(df: pd.DataFrame, symbol: str, cache_dir: str = "cache/prices"):
+    """
+    Saves price data to cache for a symbol.
+    """
+    if not is_caching_enabled():
+        return
+    
+    try:
+        cache_path = os.path.join(cache_dir, f"{symbol}.csv")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Convert DataFrame to records for storage
+        df_to_save = df.reset_index()  # Make Date a column
+        records = df_to_save.to_dict("records")
+        
+        save_to_file(records, cache_path)
+        print(f"✅ Cached {len(df)} records for {symbol}")
+        
+    except Exception as e:
+        print(f"⚠️ Failed to cache {symbol}: {e}")
+
+
+def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dict[str, pd.DataFrame]:
+    """
+    Main function to get historical price data for symbols.
     
     Args:
-        symbols: List of ticker symbols to download
-        start: Start date for historical data
-        end: End date for historical data
-        cache_dir: Directory to store cached data
-        
-    Returns:
-        Dictionary of DataFrames indexed by symbol
-    """
-    print(f"📥 Downloading {len(symbols)} symbols from {start} to {end}...")
-    try:
-        data = yf.download(
-            tickers=symbols,
-            start=start,
-            end=end,
-            group_by="ticker",
-            auto_adjust=True,
-            threads=True,
-            progress=False,
-        )
-    except Exception as e:
-        print(f"❌ Batch download failed: {e}")
-        return {}
-
-    result = {}
-
-    for symbol in symbols:
-        try:
-            df = data[symbol] if isinstance(data.columns, pd.MultiIndex) else data
-            df = df.dropna()
-            df = df[["Open", "High", "Low", "Close", "Volume"]]
-            # Make an explicit copy to avoid SettingWithCopyWarning
-            df = (
-                df.rename_axis("Date")
-                .reset_index()
-                .set_index("Date")
-                .sort_index()
-                .copy()
-            )
-
-            # Ensure numeric columns are in the correct format
-            numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-            result[symbol] = df
-
-            # Only attempt to save to cache if caching is enabled
-            if is_caching_enabled():
-                try:
-                    cached_path = os.path.join(cache_dir, f"{symbol}.csv")
-                    # Convert DataFrame to records for storage (list of dictionaries)
-                    df_to_save = df.reset_index()  # Make sure Date is a column, not index
-                    records = df_to_save.to_dict("records")
-                    # Use the utility function to save
-                    save_to_file(records, cached_path)
-                except Exception as e:
-                    print(f"⚠️ Failed to cache {symbol}: {e}")
-        except Exception as e:
-            print(f"⚠️ Failed processing {symbol}: {e}")
-
-    return result
-
-
-def download_and_cache_prices(
-    symbols: list[str],
-    start: str,
-    end: str | None = None,
-    cache_dir: str = "cache/prices",
-) -> dict[str, pd.DataFrame]:
-    """
-    Downloads historical price data for given symbols and caches it locally.
-    If the cache is fresh, it loads data from cache instead of downloading.
-    Returns a dictionary of DataFrames indexed by symbol.
-    """
-    # If no end date is provided, use today's date
-    end = end or datetime.today().strftime("%Y-%m-%d")
-
-    # ⚠️ Yahoo's `end` parameter is exclusive — to include the last trading day,
-    # we need to shift it by +1 day
-    end_dt = pd.to_datetime(end) + pd.Timedelta(days=1)
-    end = end_dt.strftime("%Y-%m-%d")
-
-    # If caching is disabled, download fresh data for all symbols
-    if not is_caching_enabled():
-        print("⚠️ Caching is disabled, downloading fresh data...")
-        return download_fresh_prices(symbols, start, end, cache_dir)
-
-    # Create cache directory
-    os.makedirs(cache_dir, exist_ok=True)
-
-    # Check if cache is stale
-    if is_cache_stale_or_missing(symbols, start=start, cache_dir=cache_dir):
-        print("⚠️ Cache is stale or missing, downloading fresh data...")
-        return download_fresh_prices(symbols, start, end, cache_dir)
-
-    # Cache is fresh, try to load symbols from cache
-    print("✅ Cache is fresh and contains required history. Loading all symbols locally...")
-    result = {}
-    symbols_with_missing_price = []
-
-    # Loop through all symbols and try to load from cache
-    for symbol in symbols:
-        try:
-            path = os.path.join(cache_dir, f"{symbol}.csv")
-            cached_data = load_from_file(path)
-            
-            if not cached_data:
-                symbols_with_missing_price.append(symbol)
-                continue
-
-            # Convert to pandas DataFrame and handle Date formatting
-            df = pd.DataFrame(cached_data)
-            df = df.copy()
-            df["Date"] = pd.to_datetime(df["Date"])
-
-            # Ensure numeric columns are converted to float
-            numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-            df = df.set_index("Date").sort_index()
-            result[symbol] = df
-
-        except Exception as e:
-            print(f"⚠️ Failed to load cache for {symbol}: {e}")
-            symbols_with_missing_price.append(symbol)
-
-    # If there are symbols with missing prices, download them
-    if symbols_with_missing_price:
-        print(
-            f"⚠️ Some symbols ({', '.join(symbols_with_missing_price)}) "
-            "are missing from cache or have invalid data."
-        )
-        missing_data = download_fresh_prices(symbols_with_missing_price, start, end, cache_dir)
-        result.update(missing_data)
-    else:
-        print("✅ All symbols loaded successfully from cache.")
+        symbols: List of trading symbols
+        start: Start date in YYYY-MM-DD format
+        end: End date in YYYY-MM-DD format (optional, defaults to last trading day)
     
+    Returns:
+        Dictionary mapping symbols to DataFrames with OHLCV data
+    """
+    if not symbols:
+        return {}
+    
+    # Initialize Zerodha broker
+    try:
+        broker = ZerodhaBroker()
+        kite = broker.kite
+        instrument_token_map = broker.get_instrument_token_map()
+    except Exception as e:
+        print(f"❌ Failed to initialize Zerodha broker: {e}")
+        return {}
+    
+    # Get market status to determine end date
+    market_status = get_market_status()
+    is_market_open = market_status["marketStatus"] in ["Open"]
+    
+    # Determine end date
+    if end is None:
+        if is_market_open:
+            # If market is open, use yesterday as end date
+            end_date = datetime.now() - timedelta(days=1)
+            end = end_date.strftime("%Y-%m-%d")
+            print(f"📅 Market is open, using yesterday ({end}) as end date")
+        else:
+            # If market is closed, use today as end date
+            end = datetime.now().strftime("%Y-%m-%d")
+            print(f"📅 Market is closed, using today ({end}) as end date")
+    
+    print(f"📊 Fetching prices for {len(symbols)} symbols from {start} to {end}")
+    
+    result = {}
+    
+    for symbol in symbols:
+        print(f"🔍 Processing {symbol}...")
+        
+        # Check if symbol exists in instrument token map
+        if symbol not in instrument_token_map:
+            print(f"⚠️ Symbol {symbol} not found in instrument token map, skipping")
+            continue
+        
+        instrument_token = instrument_token_map[symbol]
+        
+        # Try to load from cache first
+        cached_df = load_cached_prices(symbol)
+        
+        if cached_df is not None and not cached_df.empty:
+            # Check if we have enough data
+            cached_start = cached_df.index.min()
+            cached_end = cached_df.index.max()
+            required_start = pd.to_datetime(start)
+            required_end = pd.to_datetime(end)
+            
+            # If cache covers the required range, use it
+            if cached_start <= required_start and cached_end >= required_end:
+                print(f"✅ Using cached data for {symbol}")
+                result[symbol] = cached_df[required_start:required_end]
+                continue
+            
+            # If cache is missing some data, fetch only the missing part
+            fetch_start = start
+            fetch_end = end
+            
+            # Handle new listings: if symbol was listed after strategy start date
+            if cached_start > required_start:
+                print(f"📅 {symbol} was listed on {cached_start.strftime('%Y-%m-%d')} (after strategy start {required_start.strftime('%Y-%m-%d')})")
+                # For new listings, we can only provide data from listing date onwards
+                if cached_end >= required_end:
+                    # We have enough data from listing date to end date
+                    print(f"✅ Using cached data for {symbol} from listing date")
+                    result[symbol] = cached_df[required_start:required_end]
+                    continue
+                else:
+                    # Need to fetch incremental data from listing date onwards
+                    fetch_start = (cached_end + timedelta(days=1)).strftime("%Y-%m-%d")
+                    print(f"📈 Fetching incremental data for {symbol} from {fetch_start}")
+            elif cached_end >= required_start:
+                # We have some overlapping data, fetch from last cached date + 1
+                fetch_start = (cached_end + timedelta(days=1)).strftime("%Y-%m-%d")
+                print(f"📈 Fetching incremental data for {symbol} from {fetch_start}")
+            else:
+                # Cache is too old, fetch from required start
+                print(f"📉 Cache too old for {symbol}, fetching from {fetch_start}")
+            
+            # Validate that fetch_start is not after fetch_end
+            if pd.to_datetime(fetch_start) > pd.to_datetime(fetch_end):
+                print(f"⚠️ Skip fetching incremental data for {symbol}: fetch_start ({fetch_start}) is after fetch_end ({fetch_end})")
+                # Use cached data if it covers required range
+                if cached_start <= required_start and cached_end >= required_end:
+                    result[symbol] = cached_df[required_start:required_end]
+                else:
+                    print(f"⚠️ Failed to fetch data for {symbol}")
+                continue
+            
+            # Fetch missing data
+            sleep(0.5)
+            new_df = fetch_price_from_kite(kite, instrument_token, fetch_start, fetch_end)
+            
+            if not new_df.empty:
+                # Combine cached and new data
+                combined_df = pd.concat([cached_df, new_df])
+                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove duplicates
+                combined_df = combined_df.sort_index()
+                
+                # Save updated cache
+                save_prices_to_cache(combined_df, symbol)
+                
+                # Return data for requested range
+                result[symbol] = combined_df[required_start:required_end]
+            else:
+                # If new fetch failed, use cached data if it covers required range
+                if cached_start <= required_start and cached_end >= required_end:
+                    result[symbol] = cached_df[required_start:required_end]
+                else:
+                    print(f"⚠️ Failed to fetch data for {symbol}")
+        else:
+            sleep(0.5)
+            # No cache exists, fetch all data
+            print(f"📥 Fetching fresh data for {symbol}")
+            df = fetch_price_from_kite(kite, instrument_token, start, end)
+            
+            if not df.empty:
+                # Save to cache
+                save_prices_to_cache(df, symbol)
+                
+                # Return data for requested range
+                result[symbol] = df
+            else:
+                print(f"⚠️ Failed to fetch data for {symbol}")
+    
+    print(f"✅ Successfully fetched data for {len(result)} symbols")
     return result
