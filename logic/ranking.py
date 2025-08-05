@@ -13,6 +13,7 @@ def rank(
     price_data: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
     weights: tuple[float, float, float] = (0.8, 0.1, 0.1),
+    max_affordable_stock_price: float = 10000,
 ) -> pd.DataFrame:
     """
     Ranks all stocks in the universe using:
@@ -40,9 +41,14 @@ def rank(
         if df.shape[0] < 252:
             continue
 
-        # 2. Price filter: ₹100 < Close < ₹10,000
         latest_close = df["Close"].iloc[-1]
-        if latest_close < 100 or latest_close > 10000:
+
+        # Avoiding penny stocks
+        if latest_close < 100:
+            continue
+
+        # Avoiding stocks that are too expensive based on overall portfolio value
+        if latest_close >= max_affordable_stock_price:
             continue
 
         # 3. Liquidity filters

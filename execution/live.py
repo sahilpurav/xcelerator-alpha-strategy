@@ -59,36 +59,6 @@ def _execute_orders(
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
 
-def _override_ranked_stocks_with_broker_prices(symbols, price_data, broker):
-    """
-    Overrides the price data with the latest prices from the broker for the given symbols.
-
-    Args:
-        symbols (list): List of stock symbols to override prices for.
-        price_data (dict): Current price data dictionary.
-        broker: Instance of the Broker to fetch live prices.
-
-    Returns:
-        dict: Updated price data with broker prices.
-    """
-    try:
-        live_prices = broker.ltp(symbols)
-        for symbol in symbols:
-            if symbol not in live_prices:
-                continue
-
-            if symbol not in price_data:
-                continue
-
-            latest_date = price_data[symbol].index.max()
-            price_data[symbol].loc[latest_date, "Close"] = live_prices[symbol]
-
-    except Exception as e:
-        print(f"❌ Failed to fetch live prices: {e}")
-
-    return price_data
-
-
 def run_rebalance(
     top_n: int = 15,
     band: int = 5,
@@ -140,6 +110,7 @@ def run_rebalance(
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()
     held_symbols = [h["symbol"] for h in previous_holdings]
+    portfolio_value = sum([h["quantity"] * h["last_price"] for h in previous_holdings])
 
     # Create lookup for previous holdings quantities
     holdings_lookup = {h["symbol"]: h for h in previous_holdings}
@@ -152,12 +123,7 @@ def run_rebalance(
         top_n,
         band,
         cash_equivalent=cash_equivalent,
-    )
-
-    # Get all symbols from recommendations for price updates
-    all_symbols = [rec["symbol"] for rec in recommendations]
-    price_data = _override_ranked_stocks_with_broker_prices(
-        all_symbols, price_data, broker
+        portfolio_value=portfolio_value,
     )
 
     # Initialize the three lists

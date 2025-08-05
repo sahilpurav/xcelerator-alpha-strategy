@@ -14,6 +14,7 @@ def run_strategy(
     weights: tuple[float, float, float] = (0.8, 0.1, 0.1),
     cash_equivalent: str = "LIQUIDCASE",
     jump_threshold: float = 0.15,
+    portfolio_value: float = 0,
 ) -> list[dict[str, str | int | None]]:
     """
     Optimized strategy execution in a single function.
@@ -60,7 +61,8 @@ def run_strategy(
         )
 
     # Step 2: Optimize ranking data preparation
-    ranked_df = rank(price_data, as_of_date, weights)
+    max_affordable_stock_price = (portfolio_value / top_n) / 2
+    ranked_df = rank(price_data, as_of_date, weights, max_affordable_stock_price)
 
     # Single-pass data preparation (eliminating redundant operations)
     ranked_df_clean = ranked_df.copy()
