@@ -37,7 +37,7 @@ def get_market_status() -> dict:
             capital_market = {}
         
         return {
-            "marketStatus": capital_market.get("marketStatus", "CLOSED"),
+            "marketStatus": capital_market.get("marketStatus", "Closed"),
             "tradeDate": capital_market.get("tradeDate", "")
         }
     except Exception as e:

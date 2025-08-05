@@ -23,8 +23,9 @@ def apply_universe_filters(symbols: list[str]) -> list[str]:
     excluded = set().union(asm, gsm, esm)
 
     # Manual exclusion of symbols
-    manual_exclusions = ["GVT&D"]
-    excluded.add(*manual_exclusions)
+    manual_exclusions = []
+    if manual_exclusions:
+        excluded.update(manual_exclusions)
 
     filtered_symbols = [s for s in symbols if s not in excluded]
 

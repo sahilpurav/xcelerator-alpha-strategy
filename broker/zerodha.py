@@ -211,7 +211,7 @@ class ZerodhaBroker:
             print(f"❌ Failed to place order for {symbol}: {e}")
             return None
 
-    def get_request_token(self, credentials: dict) -> str:
+    def get_request_token(self, credentials: dict, retry_count: int = 0) -> str:
         """
         Handles the login flow to get a request token for Zerodha Kite API.
         This method performs the following steps:
@@ -253,12 +253,19 @@ class ZerodhaBroker:
             "twofa_type": "totp",
             "skip_session": True,
         }
-        totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
 
-        if totp_response.status_code != 200:
-            raise RuntimeError(
-                f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}"
-            )
+            if totp_response.status_code == 200:
+                break
+            elif attempt < max_retries:
+                print(f"⚠️ TOTP failed with status {totp_response.status_code}. Retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(5)
+            else:
+                raise RuntimeError(
+                    f"❌ TOTP failed with status {totp_response.status_code}. Message: {totp_response.text}"
+                )
 
         # Extract request token from redirect URL
         try:

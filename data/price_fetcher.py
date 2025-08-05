@@ -157,19 +157,11 @@ def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dic
     market_status = get_market_status()
     is_market_open = market_status["marketStatus"] in ["Open"]
     
-    # Determine end date
-    if end is None:
-        if is_market_open:
-            # If market is open, use yesterday as end date
-            end_date = datetime.now() - timedelta(days=1)
-            end = end_date.strftime("%Y-%m-%d")
-            print(f"📅 Market is open, using yesterday ({end}) as end date")
-        else:
-            # If market is closed, use today as end date
-            end = datetime.now().strftime("%Y-%m-%d")
-            print(f"📅 Market is closed, using today ({end}) as end date")
-    
     print(f"📊 Fetching prices for {len(symbols)} symbols from {start} to {end}")
+    
+    if is_market_open:
+        print("📊 Market is currently OPEN. Real-time data will be fetched; cached data will NOT be used.")
+        
     
     result = {}
     rate_limiter = RateLimiter(10, 1)
@@ -186,8 +178,8 @@ def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dic
             
             instrument_token = instrument_token_map[symbol]
             
-            # Try to load from cache first
-            cached_df = load_cached_prices(symbol)
+            # Try to load from cache first (skip cache if market is open for real-time data)
+            cached_df = None if is_market_open else load_cached_prices(symbol)
             
             if cached_df is not None and not cached_df.empty:
                 # Check if we have enough data
@@ -251,7 +243,7 @@ def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dic
                 # No cache exists, fetch all data
                 df = fetch_price_from_kite(kite, instrument_token, start, end, rate_limiter)
                 
-                if not df.empty:
+                if not df.empty and not is_market_open:
                     # Save to cache
                     save_prices_to_cache(df, symbol)
                     
