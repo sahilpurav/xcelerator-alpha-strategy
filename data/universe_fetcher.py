@@ -49,7 +49,10 @@ def get_universe_symbols(
     except ValueError:
         raise ValueError("Universe format should be like 'nifty100', 'nifty500' etc.")
 
-    url = f"https://archives.nseindia.com/content/indices/ind_nifty{size}list.csv"
+    url = f"https://www.niftyindices.com/IndexConstituent/ind_nifty{size}list.csv"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
     today = datetime.today().strftime("%Y-%m-%d")
     cache_file = os.path.join(cache_dir, f"{universe}-{today}.csv")
 
@@ -59,7 +62,7 @@ def get_universe_symbols(
         if cached_data is not None:
             df = pd.DataFrame(cached_data)
         else:
-            response = requests.get(url)
+            response = requests.get(url, headers=headers, timeout=10)
             if response.status_code != 200:
                 raise Exception(f"Failed to fetch data from {url}")
             df = pd.read_csv(StringIO(response.text))
@@ -69,7 +72,7 @@ def get_universe_symbols(
             save_to_file(records, cache_file)
     else:
         # Bypass cache if disabled
-        response = requests.get(url)
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
             raise Exception(f"Failed to fetch data from {url}")
         df = pd.read_csv(StringIO(response.text))
