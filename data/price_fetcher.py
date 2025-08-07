@@ -247,8 +247,8 @@ def get_prices(symbols: list[str], start: str, end: Optional[str] = None) -> dic
                     # Save to cache
                     save_prices_to_cache(df, symbol)
                     
-                    # Return data for requested range
-                    result[symbol] = df
+                # Return data for requested range
+                result[symbol] = df
     
     print(f"✅ Successfully fetched data for {len(result)} symbols")
     return result
