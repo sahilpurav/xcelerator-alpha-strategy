@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 
 from logic.ranking import rank
 from utils.market import is_market_strong
@@ -63,6 +64,10 @@ def run_strategy(
     # Step 2: Optimize ranking data preparation
     max_affordable_stock_price = (portfolio_value / top_n) / 2
     ranked_df = rank(price_data, as_of_date, weights, max_affordable_stock_price)
+
+    # Save the ranked dataframe in a csv file, if directory does not exist, create it
+    os.makedirs("output", exist_ok=True)
+    ranked_df.to_csv(f"output/ranked-stocks-{as_of_date.date()}.csv", index=False)
 
     # Single-pass data preparation (eliminating redundant operations)
     ranked_df_clean = ranked_df.copy()
