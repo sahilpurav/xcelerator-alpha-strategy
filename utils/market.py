@@ -1,8 +1,8 @@
+from datetime import datetime, timedelta
 from functools import lru_cache
-import requests
 
 import pandas as pd
-from datetime import datetime, timedelta
+import requests
 
 from logic.indicators import calculate_dma, calculate_ema
 
@@ -20,9 +20,9 @@ def get_market_status() -> dict:
         }
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         # Handle different response formats
         if isinstance(data.get("marketState"), dict):
             capital_market = data.get("marketState", {}).get("Capital Market", {})
@@ -30,15 +30,18 @@ def get_market_status() -> dict:
             # If marketState is a list, find the Capital Market entry
             capital_market = {}
             for market in data.get("marketState", []):
-                if isinstance(market, dict) and market.get("market") == "Capital Market":
+                if (
+                    isinstance(market, dict)
+                    and market.get("market") == "Capital Market"
+                ):
                     capital_market = market
                     break
         else:
             capital_market = {}
-        
+
         return {
             "marketStatus": capital_market.get("marketStatus", "Closed"),
-            "tradeDate": capital_market.get("tradeDate", "")
+            "tradeDate": capital_market.get("tradeDate", ""),
         }
     except Exception as e:
         print(f"⚠️ Failed to fetch market status: {e}")
@@ -86,57 +89,61 @@ def get_ranking_date(day_of_week: str = None) -> str:
     try:
         # Import here to avoid circular imports
         from broker.zerodha import ZerodhaBroker
-        
+
         # Initialize Zerodha broker
         broker = ZerodhaBroker()
         kite = broker.kite
         instrument_token_map = broker.get_instrument_token_map()
-        
+
         # Use Nifty 50 index symbol for trading day detection
         nifty50_symbol = "NIFTY 50"
-        
+
         if nifty50_symbol not in instrument_token_map:
-            print(f"⚠️ {nifty50_symbol} not found in instrument token map, using last trading date")
+            print(
+                f"⚠️ {nifty50_symbol} not found in instrument token map, using last trading date"
+            )
             return get_last_trading_date()
-        
+
         instrument_token = instrument_token_map[nifty50_symbol]
-        
+
         # Calculate date range for last 14 days
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=20)  # Extra buffer to ensure we get 14 trading days
-        
+        start_date = end_date - timedelta(
+            days=20
+        )  # Extra buffer to ensure we get 14 trading days
+
         # Fetch historical data from Kite
         historical_data = kite.historical_data(
             instrument_token=instrument_token,
             from_date=start_date,
             to_date=end_date,
-            interval="day"
+            interval="day",
         )
-        
+
         if not historical_data:
             print("⚠️ No historical data received from Zerodha, using last trading date")
             return get_last_trading_date()
-        
+
         # Convert to DataFrame and extract dates
         df = pd.DataFrame(historical_data)
         df["date"] = pd.to_datetime(df["date"])
-        
+
         # Get unique trading dates and sort them
         trading_dates = df["date"].dt.date.unique()
         trading_dates = sorted(trading_dates, reverse=True)  # Most recent first
-        
+
         # Get mapping of day name to day number (0=Monday, 4=Friday)
         day_to_num = {d: i for i, d in enumerate(valid_days)}
         target_day_num = day_to_num[day_of_week]
-        
+
         # Find the most recent occurrence of the target day that has data
         for date in trading_dates:
             if pd.to_datetime(date).weekday() == target_day_num:
                 return date.strftime("%Y-%m-%d")
-        
+
         # If no matching day found, return the most recent trading date
         return trading_dates[0].strftime("%Y-%m-%d")
-        
+
     except Exception as e:
         print(f"⚠️ Error fetching ranking date from Zerodha: {e}")
         # Fallback to last trading date
@@ -147,7 +154,7 @@ def is_market_strong(
     price_data: dict[str, pd.DataFrame],
     benchmark_symbol: str,
     as_of_date: pd.Timestamp = None,
-    breadth_threshold: float = 0.4
+    breadth_threshold: float = 0.4,
 ) -> bool:
     """
     Determines if the market is strong based on benchmark index and market breadth.

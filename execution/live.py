@@ -4,7 +4,7 @@ import pandas as pd
 
 from broker.zerodha import ZerodhaBroker
 from data.price_fetcher import get_prices
-from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
+from data.universe_fetcher import get_benchmark_symbol, get_universe_symbols
 from logic.display import display_execution_plan
 from logic.filters import apply_universe_filters
 from logic.planner import plan_allocation
@@ -20,17 +20,22 @@ def _get_filtered_universe(universe: str = "nifty500") -> list[str]:
     return apply_universe_filters(universe)
 
 
-def _get_latest_prices(symbols: list[str], as_of_date: pd.Timestamp) -> dict:
+def _get_latest_prices(
+    symbols: list[str], as_of_date: pd.Timestamp, universe: str = "nifty500"
+) -> dict:
     """
     Fetches stock prices for the given symbols from the start of the year to the as_of_date.
     """
     start = (as_of_date - timedelta(days=399)).strftime("%Y-%m-%d")
     end = as_of_date.strftime("%Y-%m-%d")
-    return get_prices(symbols, start=start, end=end)
+    return get_prices(symbols, start=start, end=end, universe=universe)
 
 
 def _execute_orders(
-    exec_df: pd.DataFrame, broker: ZerodhaBroker, dry_run: bool = False, limit_order = False
+    exec_df: pd.DataFrame,
+    broker: ZerodhaBroker,
+    dry_run: bool = False,
+    limit_order=False,
 ):
     """
     Executes the given execution plan using the broker API.
@@ -54,7 +59,9 @@ def _execute_orders(
                 try:
                     print("\n📡 Placing live orders via broker...")
                     price = row["Price"] if limit_order else None
-                    broker.place_order(symbol, quantity, transaction_type=action, price=price)
+                    broker.place_order(
+                        symbol, quantity, transaction_type=action, price=price
+                    )
                 except Exception as e:
                     print(f"❌ Failed to {action} {symbol}: {e}")
 
@@ -105,7 +112,7 @@ def run_rebalance(
     universe_symbols = universe_symbols_list
 
     price_symbols = list(set(universe_symbols + [cash_equivalent, benchmark_symbol]))
-    price_data = _get_latest_prices(price_symbols, ranking_date)
+    price_data = _get_latest_prices(price_symbols, ranking_date, universe=universe)
 
     broker = ZerodhaBroker()
     previous_holdings = broker.get_holdings()

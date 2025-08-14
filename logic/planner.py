@@ -4,7 +4,9 @@ import pandas as pd
 
 
 def _allocate_capital_equally_with_cap(
-    stocks: list[dict[str, str | float | int]], usable_capital: float, max_cap_per_stock: float
+    stocks: list[dict[str, str | float | int]],
+    usable_capital: float,
+    max_cap_per_stock: float,
 ) -> tuple[list[dict[str, str | float | int]], float]:
     """
     Step 1: Equal allocation amongst given stocks with maximum cap per stock.
@@ -308,9 +310,7 @@ def plan_allocation(
     """Plan a rebalance based on current holdings and new entries."""
 
     # Validate inputs first
-    _validate_inputs(
-        held_stocks, new_stocks, removed_stocks, transaction_cost_pct
-    )
+    _validate_inputs(held_stocks, new_stocks, removed_stocks, transaction_cost_pct)
 
     # Calculate freed capital from removed stocks
     sell_value = sum(

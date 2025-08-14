@@ -1,6 +1,7 @@
 import time
 from collections import deque
 
+
 class RateLimiter:
     def __init__(self, max_calls: int, per_seconds: float):
         self.max_calls = max_calls

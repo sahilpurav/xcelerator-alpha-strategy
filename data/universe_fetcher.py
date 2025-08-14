@@ -1,6 +1,7 @@
 import os
-from io import StringIO
 from datetime import datetime
+from io import StringIO
+
 import pandas as pd
 import requests
 

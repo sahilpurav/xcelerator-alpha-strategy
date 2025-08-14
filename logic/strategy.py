@@ -1,5 +1,6 @@
-import pandas as pd
 import os
+
+import pandas as pd
 
 from logic.ranking import rank
 from utils.market import is_market_strong
@@ -36,7 +37,9 @@ def run_strategy(
     """
 
     # Step 1: Check market strength
-    market_is_strong = is_market_strong(price_data, benchmark_symbol=benchmark_symbol, as_of_date=as_of_date)
+    market_is_strong = is_market_strong(
+        price_data, benchmark_symbol=benchmark_symbol, as_of_date=as_of_date
+    )
 
     # Normalize cash symbol once
     cash_symbol_clean = cash_equivalent

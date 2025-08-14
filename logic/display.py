@@ -52,7 +52,9 @@ def display_portfolio_table(data: list[dict], label_map: dict, tsv: bool = False
     print(f"📌 Total Current Value  : ₹{total_current:,.2f}")
 
 
-def display_execution_plan(exec_df: pd.DataFrame, type: str, cash: float = 0.0, transaction_cost: float = 0.0):
+def display_execution_plan(
+    exec_df: pd.DataFrame, type: str, cash: float = 0.0, transaction_cost: float = 0.0
+):
     """
     Displays the execution plan in a user-friendly format.
 

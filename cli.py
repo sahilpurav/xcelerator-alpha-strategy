@@ -20,18 +20,27 @@ def rebalance(
         help="Day of week for ranking (Monday, Tuesday, etc.). Default: use latest trading day",
     ),
     dry_run: bool = typer.Option(False, help="Simulate without placing orders"),
-    universe: str = typer.Option("nifty500", help="Universe to use (nifty500, nifty100)"),
+    universe: str = typer.Option(
+        "nifty500", help="Universe to use (nifty500, nifty100)"
+    ),
 ):
     """Run smart rebalancing strategy with market regime check"""
     run_rebalance(
-        top_n=top_n, band=band, cash_equivalent=cash, rank_day=rank_day, dry_run=dry_run, universe=universe
+        top_n=top_n,
+        band=band,
+        cash_equivalent=cash,
+        rank_day=rank_day,
+        dry_run=dry_run,
+        universe=universe,
     )
 
 
 @app.command()
 def topup(
     dry_run: bool = typer.Option(False, help="Simulate without placing orders"),
-    universe: str = typer.Option("nifty500", help="Universe to use (nifty500, nifty100)"),
+    universe: str = typer.Option(
+        "nifty500", help="Universe to use (nifty500, nifty100)"
+    ),
 ):
     """Add capital to existing portfolio"""
     run_topup(dry_run=dry_run, universe=universe)
@@ -73,13 +82,25 @@ def backtest(
     ),
     top_n: int = typer.Option(15, help="Number of stocks to select"),
     cash: str = typer.Option("LIQUIDCASE", help="Cash equivalent symbol"),
-    universe: str = typer.Option("nifty500", help="Universe to use (nifty500, nifty100)"),
+    universe: str = typer.Option(
+        "nifty500", help="Universe to use (nifty500, nifty100)"
+    ),
     rebalance_frequency: str = typer.Option(
         "W", help="Rebalance frequency (D for daily, W for weekly, M for monthly)"
     ),
 ):
     """Run the backtest for Xcelerator Alpha Strategy."""
-    run_backtest(start, end, initial_capital, rebalance_day, band, top_n, cash, universe, rebalance_frequency)
+    run_backtest(
+        start,
+        end,
+        initial_capital,
+        rebalance_day,
+        band,
+        top_n,
+        cash,
+        universe,
+        rebalance_frequency,
+    )
 
 
 if __name__ == "__main__":

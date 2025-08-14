@@ -194,7 +194,11 @@ class ZerodhaBroker:
         self, symbol, quantity, exchange="NSE", transaction_type="BUY", price=None
     ):
         try:
-            order_type = self.kite.ORDER_TYPE_MARKET if price is None else self.kite.ORDER_TYPE_LIMIT
+            order_type = (
+                self.kite.ORDER_TYPE_MARKET
+                if price is None
+                else self.kite.ORDER_TYPE_LIMIT
+            )
             order_id = self.kite.place_order(
                 variety=self.kite.VARIETY_REGULAR,
                 exchange=exchange,
@@ -255,12 +259,16 @@ class ZerodhaBroker:
         }
         max_retries = 2
         for attempt in range(max_retries + 1):
-            totp_response = session.post("https://kite.zerodha.com/api/twofa", totp_payload)
+            totp_response = session.post(
+                "https://kite.zerodha.com/api/twofa", totp_payload
+            )
 
             if totp_response.status_code == 200:
                 break
             elif attempt < max_retries:
-                print(f"⚠️ TOTP failed with status {totp_response.status_code}. Retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                print(
+                    f"⚠️ TOTP failed with status {totp_response.status_code}. Retrying... (attempt {attempt + 1}/{max_retries + 1})"
+                )
                 time.sleep(5)
             else:
                 raise RuntimeError(

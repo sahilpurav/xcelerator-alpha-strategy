@@ -6,7 +6,7 @@ import pandas as pd
 
 from broker.backtest import BacktestBroker
 from data.price_fetcher import get_prices
-from data.universe_fetcher import get_universe_symbols, get_benchmark_symbol
+from data.universe_fetcher import get_benchmark_symbol, get_universe_symbols
 from logic.planner import plan_allocation
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
@@ -76,7 +76,10 @@ class BacktestEngine:
         self.total_transaction_cost = 0.0
 
     def get_universe_and_price_data(
-        self, start_date: pd.Timestamp, end_date: pd.Timestamp, universe: str = "nifty500"
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        universe: str = "nifty500",
     ) -> tuple[list[str], dict[str, pd.DataFrame]]:
         """
         Get filtered universe and historical price data.
@@ -96,7 +99,9 @@ class BacktestEngine:
         )  # Extra buffer for indicators
         end_str = end_date.strftime("%Y-%m-%d")
 
-        price_data = get_prices(symbols, start=start_str, end=end_str)
+        price_data = get_prices(
+            symbols, start=start_str, end=end_str, universe=universe
+        )
 
         return universe_symbols, price_data
 
@@ -180,10 +185,10 @@ class BacktestEngine:
         for rec in recommendations:
             if rec["action"] == "BUY":
                 if (
-                    rec['symbol'] in price_data
-                    and date in price_data[rec['symbol']].index
+                    rec["symbol"] in price_data
+                    and date in price_data[rec["symbol"]].index
                 ):
-                    price = price_data[rec['symbol']].loc[date, "Close"]
+                    price = price_data[rec["symbol"]].loc[date, "Close"]
                     new_stocks.append(
                         {
                             "symbol": rec["symbol"],
@@ -259,10 +264,7 @@ class BacktestEngine:
             removed_stocks = []
             for holding in equity_holdings:
                 symbol = holding["symbol"]
-                if (
-                    symbol in price_data
-                    and date in price_data[symbol].index
-                ):
+                if symbol in price_data and date in price_data[symbol].index:
                     price = price_data[symbol].loc[date, "Close"]
                     removed_stocks.append(
                         {
@@ -283,7 +285,7 @@ class BacktestEngine:
                     sell_value = stock["quantity"] * stock["last_price"]
                     # Calculate transaction cost for this sell (same rate as plan_allocation uses)
                     transaction_cost += sell_value * self.transaction_cost_pct
-                    
+
                     sells_data.append(
                         {
                             "Symbol": stock["symbol"],
@@ -319,10 +321,7 @@ class BacktestEngine:
                 continue
 
             # Get price data for regular equities
-            if (
-                symbol not in price_data
-                or date not in price_data[symbol].index
-            ):
+            if symbol not in price_data or date not in price_data[symbol].index:
                 continue
             price = price_data[symbol].loc[date, "Close"]
 
@@ -408,7 +407,12 @@ class BacktestEngine:
         portfolio_value = self.broker.get_portfolio_value(price_data, date)
         self.portfolio_values.append((date, portfolio_value))
 
-    def run_backtest(self, start_date: pd.Timestamp, end_date: pd.Timestamp, universe: str = "nifty500") -> dict:
+    def run_backtest(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        universe: str = "nifty500",
+    ) -> dict:
         """
         Run the complete backtest.
 
@@ -417,7 +421,7 @@ class BacktestEngine:
         """
         # Set the benchmark symbol for this universe
         self.benchmark_symbol = get_benchmark_symbol(universe)
-        
+
         # Get data
         _, price_data = self.get_universe_and_price_data(start_date, end_date, universe)
 
@@ -589,16 +593,12 @@ class BacktestEngine:
         sharpe_ratio = excess_return / volatility if volatility > 0 else 0
 
         # Adjusted metrics (accounting for transaction costs)
-        adjusted_final_value = df_values["portfolio_value"].iloc[-1] - self.total_transaction_cost
-        adjusted_total_return = (
-            (adjusted_final_value / self.initial_capital - 1) * 100
+        adjusted_final_value = (
+            df_values["portfolio_value"].iloc[-1] - self.total_transaction_cost
         )
+        adjusted_total_return = (adjusted_final_value / self.initial_capital - 1) * 100
         adjusted_cagr = (
-            (
-                (adjusted_final_value / self.initial_capital) ** (1 / years)
-                - 1
-            )
-            * 100
+            ((adjusted_final_value / self.initial_capital) ** (1 / years) - 1) * 100
             if years > 0
             else 0
         )
@@ -643,15 +643,11 @@ class BacktestEngine:
         print(f"🔄 Total Trades: {results['total_trades']}")
         print(f"📅 Rebalances: {results['rebalance_count']}")
         print(f"💸 Transaction Costs: ₹{results['total_transaction_cost']:,.2f}")
-        print(
-            f"💎 Final Value (Adj.): ₹{results['adjusted_final_value']:,.2f}"  # New
-        )
+        print(f"💎 Final Value (Adj.): ₹{results['adjusted_final_value']:,.2f}")  # New
         print(
             f"📊 Total Return (Adj.): {results['adjusted_total_return_pct']:.2f}%"  # New
         )
-        print(
-            f"📈 CAGR (Adj.): {results['adjusted_cagr_pct']:.2f}%"  # New
-        )
+        print(f"📈 CAGR (Adj.): {results['adjusted_cagr_pct']:.2f}%")  # New
         print("=" * 60)
 
 
@@ -726,7 +722,9 @@ def run_backtest(
         )
         # Reset index to include date as a column and reorder columns
         portfolio_df_with_date = results["portfolio_values"].reset_index()
-        portfolio_df_with_date = portfolio_df_with_date[["date", "portfolio_value", "daily_return", "cumulative_return"]]
+        portfolio_df_with_date = portfolio_df_with_date[
+            ["date", "portfolio_value", "daily_return", "cumulative_return"]
+        ]
         portfolio_records = portfolio_df_with_date.to_dict("records")
         if save_to_file(portfolio_records, portfolio_file):
             print(f"📁 Portfolio values saved to: {portfolio_file}")

@@ -32,7 +32,7 @@ class BacktestBroker:
     def cash(self) -> float:
         """Get current cash balance (matches live broker interface)."""
         return self._cash
-    
+
     @cash.setter
     def cash(self, value: float) -> None:
         """Set current cash balance."""
