@@ -131,6 +131,7 @@ def run_rebalance(
         band,
         cash_equivalent=cash_equivalent,
         portfolio_value=portfolio_value,
+        save_ranked_stocks=True,
     )
 
     # Initialize the three lists
