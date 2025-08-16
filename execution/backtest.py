@@ -7,6 +7,7 @@ import pandas as pd
 from broker.backtest import BacktestBroker
 from data.price_fetcher import get_prices
 from data.universe_fetcher import get_benchmark_symbol, get_universe_symbols
+from logic.filters import apply_universe_filters
 from logic.planner import plan_allocation
 from logic.strategy import run_strategy
 from utils.cache import save_to_file
@@ -84,8 +85,9 @@ class BacktestEngine:
         """
         Get filtered universe and historical price data.
         """
-        # Get universe (without ASM/GSM filtering for backtest)
-        universe_symbols = get_universe_symbols(universe)
+        # Get universe and apply the same filters as live execution
+        raw_universe_symbols = get_universe_symbols(universe)
+        universe_symbols = apply_universe_filters(raw_universe_symbols)
 
         # Get benchmark symbol for this universe
         benchmark_symbol = get_benchmark_symbol(universe)
@@ -146,6 +148,9 @@ class BacktestEngine:
         Returns:
             Tuple of (success, execution_df)
         """
+        # Calculate portfolio value for strategy (initial capital during initial investment)
+        portfolio_value = self.broker.cash
+        
         # Run strategy to get recommendations in one call
         recommendations = run_strategy(
             price_data,
@@ -155,6 +160,7 @@ class BacktestEngine:
             self.top_n,
             self.band,
             cash_equivalent=self.cash_equivalent,
+            portfolio_value=portfolio_value,
         )
 
         # Check if strategy recommends cash equivalent (weak market)
@@ -229,6 +235,18 @@ class BacktestEngine:
         if not held_symbols:
             return False, pd.DataFrame()
 
+        # Calculate portfolio value for strategy
+        portfolio_value = 0
+        for holding in previous_holdings:
+            symbol = holding["symbol"]
+            quantity = holding["quantity"]
+            if symbol in price_data and date in price_data[symbol].index:
+                current_price = price_data[symbol].loc[date, "Close"]
+                portfolio_value += quantity * current_price
+            else:
+                # Fallback to buy price if current price not available
+                portfolio_value += quantity * holding["buy_price"]
+
         # Run strategy to get recommendations in one call
         recommendations = run_strategy(
             price_data,
@@ -238,6 +256,7 @@ class BacktestEngine:
             self.top_n,
             self.band,
             cash_equivalent=self.cash_equivalent,
+            portfolio_value=portfolio_value,
         )
 
         # Detect market regime from recommendations
